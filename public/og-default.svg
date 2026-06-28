@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#101010"/>
+  <rect x="60" y="60" width="1080" height="510" fill="#f6f4ef"/>
+  <rect x="60" y="60" width="1080" height="10" fill="#cc0000"/>
+  <circle cx="170" cy="180" r="64" fill="#101010"/>
+  <circle cx="170" cy="180" r="38" fill="none" stroke="#ffffff" stroke-width="8"/>
+  <path d="M106 180h128M170 116c24 28 36 49 36 64s-12 36-36 64c-24-28-36-49-36-64s12-36 36-64Z" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+  <text x="270" y="178" font-family="Georgia, 'Times New Roman', serif" font-size="74" font-weight="700" fill="#101010">World News Simply</text>
+  <text x="270" y="245" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#cc0000">Clear Global Updates Every Day</text>
+  <text x="90" y="420" font-family="Georgia, 'Times New Roman', serif" font-size="58" font-weight="700" fill="#101010">Politics, Technology, Business, Sports, Health and more.</text>
+</svg>

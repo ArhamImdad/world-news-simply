@@ -1,21 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
+import { getSupabasePublicEnv } from "@/lib/env";
+export type { Article } from "@/types/article";
 
-export type Article = {
-  id: string;
-  title: string;
-  content: string;
-  summary: string;
-  image_url: string;
-  source_url: string;
-  category: string;
-  created_at: string;
-};
+const env = getSupabasePublicEnv();
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Missing Supabase environment variables.");
-}
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(
+  env.NEXT_PUBLIC_SUPABASE_URL,
+  env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);

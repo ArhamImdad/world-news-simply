@@ -1,9 +1,40 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
+import { getPublicSiteUrl } from "@/lib/env";
+import ScrollToTop from "./scroll-to-top";
+import { ThemeProvider } from "./theme-provider";
 import "./globals.css";
 
+const siteUrl = getPublicSiteUrl();
+
 export const metadata: Metadata = {
-  title: "World News Simply",
-  description: "Simple English news from around the world.",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "World News Simply - Clear Global Updates Every Day",
+    template: "%s | World News Simply",
+  },
+  description: "Get the latest world news simplified and explained clearly. Politics, Technology, Business, Sports, Health and more.",
+  alternates: {
+    canonical: siteUrl,
+  },
+  openGraph: {
+    title: "World News Simply - Clear Global Updates Every Day",
+    description: "Get the latest world news simplified and explained clearly.",
+    url: siteUrl,
+    siteName: "World News Simply",
+    type: "website",
+    images: [{ url: "/og-default.svg", alt: "World News Simply" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "World News Simply - Clear Global Updates Every Day",
+    description: "Get the latest world news simplified and explained clearly.",
+    images: ["/og-default.svg"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({
@@ -12,8 +43,22 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased">
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem('world-news-theme');var d=t?t==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',d);document.documentElement.dataset.theme=d?'dark':'light'}catch(e){}`,
+          }}
+        />
+      </head>
+      <body className="min-h-full flex flex-col">
+        <ThemeProvider>
+          <Suspense fallback={null}>
+            <ScrollToTop />
+          </Suspense>
+          {children}
+        </ThemeProvider>
+      </body>
     </html>
   );
 }

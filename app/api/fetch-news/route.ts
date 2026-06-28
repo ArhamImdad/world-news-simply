@@ -1,120 +1,173 @@
-import { createClient } from '@supabase/supabase-js'
-import Groq from 'groq-sdk'
-import Parser from 'rss-parser'
+import { rewriteWithGroq } from "@/lib/groq";
+import { RSS_FEEDS, parseFeed } from "@/lib/rss";
+import { supabase } from "@/lib/supabase";
+import { getUnsplashImage } from "@/lib/unsplash";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+export const dynamic = "force-dynamic";
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
-const parser = new Parser()
+const ARTICLE_DELAY_MS = 8000;
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const RATE_LIMIT_MAX_REQUESTS = 2;
+const requestLog: number[] = [];
 
-const RSS_FEEDS = [
-  // World
-  'https://feeds.bbci.co.uk/news/world/rss.xml',
-  'http://www.aljazeera.com/xml/rss/all.xml',
-  // Technology
-  'https://www.theverge.com/rss/index.xml',
-  'https://techcrunch.com/feed/',
-  // Business
-  'https://www.cnbc.com/id/10001147/device/rss/rss.html',
-  // Sports
-  'https://www.espn.com/espn/rss/news',
-  // Politics
-  'https://feeds.bbci.co.uk/news/politics/rss.xml',
-  'https://rss.politico.com/politics-news.xml',
-  // Health
-  'https://feeds.bbci.co.uk/news/health/rss.xml',
-  'https://www.who.int/rss-feeds/news-english.xml',
-]
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+type JobSummary = {
+  feedsChecked: number;
+  inserted: number;
+  skippedDuplicates: number;
+  skippedInvalid: number;
+  failedFeeds: Array<{ url: string; error: string }>;
+  failedArticles: Array<{ feedUrl: string; title: string; error: string }>;
+};
 
-async function getUnsplashImage(query: string) {
-  const res = await fetch(
-    `https://api.unsplash.com/photos/random?query=${query}&orientation=landscape`,
-    { headers: { Authorization: `Client-ID ${process.env.UNSPLASH_ACCESS_KEY}` } }
-  )
-  const data = await res.json()
-  return data?.urls?.regular || 'https://source.unsplash.com/random'
+function isRateLimited() {
+  const now = Date.now();
+  const recentRequests = requestLog.filter((timestamp) => now - timestamp < RATE_LIMIT_WINDOW_MS);
+  requestLog.length = 0;
+  requestLog.push(...recentRequests);
+
+  if (requestLog.length >= RATE_LIMIT_MAX_REQUESTS) {
+    return true;
+  }
+
+  requestLog.push(now);
+  return false;
 }
 
-async function rewriteWithGroq(title: string, content: string) {
-  const completion = await groq.chat.completions.create({
-    model: 'llama-3.3-70b-versatile',
-    messages: [
-      {
-        role: 'user',
-        content: `You are a news writer. Rewrite this news article in simple, clear English.
-Return a JSON object with these fields:
-- title: improved headline
-- content: full article (300-400 words, simple English)
-- summary: 2 sentence summary
-- category: one of (World, Politics, Technology, Business, Sports, Health)
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
 
-Original title: ${title}
-Original content: ${content}
+async function articleExists(title: string, sourceUrl: string) {
+  const { data: titleMatch, error: titleError } = await supabase
+    .from("articles")
+    .select("id")
+    .eq("title", title)
+    .limit(1);
 
-Return only valid JSON, nothing else.`
-      }
-    ],
-  })
+  if (titleError) {
+    throw titleError;
+  }
 
-  const text = completion.choices[0]?.message?.content || ''
-  const clean = text
-    .replace(/```json|```/g, '')
-    .replace(/[\x00-\x1F\x7F]/g, ' ')
-    .trim()
-  return JSON.parse(clean)
+  if (titleMatch?.length) {
+    return true;
+  }
+
+  if (!sourceUrl) {
+    return false;
+  }
+
+  const { data: sourceMatch, error: sourceError } = await supabase
+    .from("articles")
+    .select("id")
+    .eq("source_url", sourceUrl)
+    .limit(1);
+
+  if (sourceError) {
+    throw sourceError;
+  }
+
+  return Boolean(sourceMatch?.length);
+}
+
+async function insertArticle(payload: Record<string, unknown>) {
+  const { error } = await supabase.from("articles").insert(payload);
+
+  if (!error) return;
+
+  throw error;
 }
 
 export async function GET() {
-  try {
-    for (const feedUrl of RSS_FEEDS) {
-      let feed
-      try {
-        feed = await parser.parseURL(feedUrl)
-      } catch (err) {
-        console.error(`Skipping feed ${feedUrl}:`, err)
-        continue
+  if (isRateLimited()) {
+    return Response.json(
+      {
+        success: false,
+        message: "Rate limit exceeded. Try again later.",
+      },
+      { status: 429 }
+    );
+  }
+
+  const summary: JobSummary = {
+    feedsChecked: 0,
+    inserted: 0,
+    skippedDuplicates: 0,
+    skippedInvalid: 0,
+    failedFeeds: [],
+    failedArticles: [],
+  };
+
+  for (const feed of RSS_FEEDS) {
+    summary.feedsChecked += 1;
+
+    let parsedFeed;
+    try {
+      parsedFeed = await parseFeed(feed.url);
+    } catch (error) {
+      summary.failedFeeds.push({ url: feed.url, error: getErrorMessage(error) });
+      continue;
+    }
+
+    const items = parsedFeed.items.slice(0, 1);
+
+    for (const item of items) {
+      const title = item.title?.trim() || "";
+      const content = (item.contentSnippet || item.content || "").trim();
+      const sourceUrl = item.link || "";
+
+      if (!title || !content) {
+        summary.skippedInvalid += 1;
+        continue;
       }
 
-      const items = feed.items.slice(0, 1)
+      try {
+        if (await articleExists(title, sourceUrl)) {
+          summary.skippedDuplicates += 1;
+          continue;
+        }
 
-      for (const item of items) {
-        const title = item.title || ''
-        const content = item.contentSnippet || item.content || ''
+        const rewritten = await rewriteWithGroq(title, content, feed);
+        const imageUrl = await getUnsplashImage(
+          rewritten.article_type === "opinion" ? "editorial opinion" : rewritten.category
+        );
 
-        if (!title || !content) continue
-
-        const { data: existing } = await supabase
-          .from('articles')
-          .select('id')
-          .eq('title', title)
-          .single()
-
-        if (existing) continue
-
-        const rewritten = await rewriteWithGroq(title, content)
-        const image_url = await getUnsplashImage(rewritten.category)
-
-        await supabase.from('articles').insert({
+        await insertArticle({
           title: rewritten.title,
           content: rewritten.content,
           summary: rewritten.summary,
-          image_url,
-          source_url: item.link || '',
+          image_url: imageUrl,
+          source_url: sourceUrl,
           category: rewritten.category,
-        })
+          region: rewritten.region,
+          article_type: rewritten.article_type,
+          is_breaking: rewritten.is_breaking,
+          is_editors_pick: false,
+          read_time: rewritten.read_time,
+          views: 0,
+        });
 
-        await sleep(3000)
+        summary.inserted += 1;
+        await sleep(ARTICLE_DELAY_MS);
+      } catch (error) {
+        summary.failedArticles.push({
+          feedUrl: feed.url,
+          title,
+          error: getErrorMessage(error),
+        });
       }
     }
-
-    return Response.json({ success: true, message: 'Articles fetched and saved!' })
-  } catch (error) {
-    console.error(error)
-    return Response.json({ success: false, error: String(error) }, { status: 500 })
   }
+
+  const status = summary.inserted > 0 || summary.failedFeeds.length < RSS_FEEDS.length ? 200 : 502;
+
+  return Response.json(
+    {
+      success: status === 200,
+      message: status === 200 ? "Articles fetched and saved." : "All feeds failed.",
+      summary,
+    },
+    { status }
+  );
 }

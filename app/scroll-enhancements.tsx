@@ -14,7 +14,7 @@ export default function ScrollEnhancements() {
       const nextProgress = scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0;
 
       setProgress(nextProgress);
-      setShowBackToTop(scrollTop > 520);
+      setShowBackToTop(scrollTop > 300);
       document.documentElement.classList.toggle("is-scrolled", scrollTop > 8);
     };
 

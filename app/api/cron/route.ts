@@ -1,9 +1,11 @@
+import { fetchWithTimeout } from "@/lib/fetch-timeout";
+
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
     const fetchNewsUrl = new URL("/api/fetch-news", request.url);
-    const response = await fetch(fetchNewsUrl, { cache: "no-store" });
+    const response = await fetchWithTimeout(fetchNewsUrl, { cache: "no-store" });
     const result = await response.json().catch(() => null);
 
     if (!response.ok) {
