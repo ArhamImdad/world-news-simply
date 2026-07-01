@@ -35,6 +35,10 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
   verification: {
     google: "MHFiGDajc6_jJjXyDx0unjDUSFXUm0x6IJKTo0Rkwgg",
   },
