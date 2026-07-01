@@ -1,34 +1,33 @@
 import type { MetadataRoute } from "next";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
 
-const siteUrl = "https://world-news-simply.vercel.app";
-const categories = ["World", "Politics", "Technology", "Business", "Sports", "Health", "Opinion"];
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const { data } = await supabase
+  const baseUrl = "https://world-news-simply.vercel.app";
+
+  const { data: articles } = await supabase
     .from("articles")
-    .select("id,created_at")
-    .order("created_at", { ascending: false })
-    .limit(500);
+    .select("id, created_at")
+    .order("created_at", { ascending: false });
+
+  const articleUrls = (articles || []).map((article) => ({
+    url: `${baseUrl}/article/${article.id}`,
+    lastModified: new Date(article.created_at),
+    changeFrequency: "daily" as const,
+    priority: 0.8,
+  }));
 
   return [
     {
-      url: siteUrl,
-      lastModified: new Date(),
-      changeFrequency: "hourly",
-      priority: 1,
-    },
-    ...categories.map((category) => ({
-      url: `${siteUrl}/?category=${category}`,
+      url: baseUrl,
       lastModified: new Date(),
       changeFrequency: "hourly" as const,
-      priority: 0.8,
-    })),
-    ...(data ?? []).map((article) => ({
-      url: `${siteUrl}/article/${article.id}`,
-      lastModified: new Date(article.created_at),
-      changeFrequency: "daily" as const,
-      priority: 0.7,
-    })),
+      priority: 1,
+    },
+    ...articleUrls,
   ];
 }
