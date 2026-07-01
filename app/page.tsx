@@ -201,12 +201,21 @@ function getShareLinks(article: Article) {
   ];
 }
 
-async function getArticles() {
-  const { data, error } = await supabase
+async function getArticles(filters: { category?: string; region?: string } = {}) {
+  let query = supabase
     .from("articles")
     .select(ARTICLE_SELECT)
-    .order("created_at", { ascending: false })
-    .limit(120);
+    .order("created_at", { ascending: false });
+
+  if (filters.category) {
+    query = query.eq("category", filters.category);
+  }
+
+  if (filters.region) {
+    query = query.in("region", [filters.region, "Global"]);
+  }
+
+  const { data, error } = await query.limit(120);
 
   if (error) {
     console.error("Failed to load articles:", error.message);
@@ -1036,20 +1045,19 @@ async function NewsContent({
   const currentPage = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const activeCategory = categories.includes(selectedCategory) ? selectedCategory : "All";
   const activeRegion = regions.includes(selectedRegion) ? selectedRegion : "All";
-  const [allArticles, videos, weather, markets] = await Promise.all([
+  const activeFilters = {
+    category: activeCategory === "All" ? undefined : activeCategory,
+    region: activeRegion === "All" ? undefined : activeRegion,
+  };
+  const shouldUseFilteredQuery = Boolean(activeFilters.category || activeFilters.region);
+  const [allArticles, filteredArticles, videos, weather, markets] = await Promise.all([
     getArticles(),
+    shouldUseFilteredQuery ? getArticles(activeFilters) : Promise.resolve<Article[]>([]),
     getVideos(),
     getWeather(),
     getMarkets(),
   ]);
-  const categoryArticles =
-    activeCategory === "All"
-      ? allArticles
-      : allArticles.filter((article) => article.category === activeCategory);
-  const activeArticles =
-    activeRegion === "All"
-      ? categoryArticles
-      : categoryArticles.filter((article) => article.region === activeRegion);
+  const activeArticles = shouldUseFilteredQuery ? filteredArticles : allArticles;
   const totalPages = Math.max(1, Math.ceil(activeArticles.length / PAGE_SIZE));
   const pageArticles = activeArticles.slice(
     (Math.min(currentPage, totalPages) - 1) * PAGE_SIZE,
