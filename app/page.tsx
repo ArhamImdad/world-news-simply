@@ -17,22 +17,22 @@ import { ARTICLE_SELECT } from "@/types/article";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "World News Simply",
-  description: "Simple English news from around the world, with live headlines, opinion, video, markets, and regional coverage.",
+  title: "World News Simply | Breaking News in Simple English",
+  description: "World News Simply - Get the latest breaking news from around the world in simple English. Read clear updates on politics, technology, business, sports, health, and more.",
   alternates: {
     canonical: "/",
   },
   openGraph: {
-    title: "World News Simply",
-    description: "Simple English news from around the world.",
+    title: "World News Simply | Breaking News in Simple English",
+    description: "World News Simply - Get the latest breaking news from around the world in simple English.",
     url: "/",
     type: "website",
     images: [{ url: "/globe.svg", alt: "World News Simply" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "World News Simply",
-    description: "Simple English news from around the world.",
+    title: "World News Simply | Breaking News in Simple English",
+    description: "World News Simply - Get the latest breaking news from around the world in simple English.",
     images: ["/globe.svg"],
   },
 };

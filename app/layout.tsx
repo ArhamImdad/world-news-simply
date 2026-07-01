@@ -10,16 +10,16 @@ const siteUrl = getPublicSiteUrl();
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "World News Simply - Clear Global Updates Every Day",
+    default: "World News Simply | Breaking News in Simple English",
     template: "%s | World News Simply",
   },
-  description: "Get the latest world news simplified and explained clearly. Politics, Technology, Business, Sports, Health and more.",
+  description: "World News Simply - Get the latest breaking news from around the world in simple English. Read clear updates on politics, technology, business, sports, health, and more.",
   alternates: {
     canonical: siteUrl,
   },
   openGraph: {
-    title: "World News Simply - Clear Global Updates Every Day",
-    description: "Get the latest world news simplified and explained clearly.",
+    title: "World News Simply | Breaking News in Simple English",
+    description: "World News Simply - Get the latest breaking news from around the world in simple English.",
     url: siteUrl,
     siteName: "World News Simply",
     type: "website",
@@ -27,8 +27,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "World News Simply - Clear Global Updates Every Day",
-    description: "Get the latest world news simplified and explained clearly.",
+    title: "World News Simply | Breaking News in Simple English",
+    description: "World News Simply - Get the latest breaking news from around the world in simple English.",
     images: ["/og-default.svg"],
   },
   robots: {
