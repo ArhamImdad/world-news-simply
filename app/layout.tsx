@@ -53,6 +53,17 @@ export default function RootLayout({
             __html: `try{var t=localStorage.getItem('world-news-theme');var d=t?t==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',d);document.documentElement.dataset.theme=d?'dark':'light'}catch(e){}`,
           }}
         />
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-BQ9ME85BTV" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', 'G-BQ9ME85BTV');
+            `,
+          }}
+        />
       </head>
       <body className="min-h-full flex flex-col">
         <ThemeProvider>
