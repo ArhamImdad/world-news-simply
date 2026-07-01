@@ -45,9 +45,6 @@ export type RewrittenArticle = {
   title: string;
   content: string;
   summary: string;
-  category: Exclude<ArticleCategory, "All">;
-  article_type: ArticleType;
-  region: Exclude<ArticleRegion, "All"> | "Global";
   is_breaking: boolean;
   read_time: number;
 };

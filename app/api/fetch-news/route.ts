@@ -128,9 +128,9 @@ export async function GET() {
           continue;
         }
 
-        const rewritten = await rewriteWithGroq(title, content, feed);
+        const rewritten = await rewriteWithGroq(title, content);
         const imageUrl = await getUnsplashImage(
-          rewritten.article_type === "opinion" ? "editorial opinion" : rewritten.category
+          feed.articleTypeHint === "opinion" ? "editorial opinion" : feed.categoryHint
         );
 
         await insertArticle({
@@ -139,12 +139,12 @@ export async function GET() {
           summary: rewritten.summary,
           image_url: imageUrl,
           source_url: sourceUrl,
-          category: rewritten.category,
-          region: rewritten.region,
-          article_type: rewritten.article_type,
-          is_breaking: rewritten.is_breaking,
+          category: feed.categoryHint,
+          region: feed.regionHint ?? "Global",
+          article_type: feed.articleTypeHint || "news",
+          is_breaking: rewritten.is_breaking || false,
           is_editors_pick: false,
-          read_time: rewritten.read_time,
+          read_time: rewritten.read_time || 3,
           views: 0,
         });
 
