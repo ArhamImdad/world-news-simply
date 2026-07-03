@@ -90,6 +90,17 @@ export async function GET() {
     );
   }
 
+  processAllFeeds().catch((error) => {
+    console.error("Background news fetch failed:", error);
+  });
+
+  return Response.json({
+    success: true,
+    message: "News fetch started in background!",
+  });
+}
+
+async function processAllFeeds() {
   const summary: JobSummary = {
     feedsChecked: 0,
     inserted: 0,
@@ -160,14 +171,8 @@ export async function GET() {
     }
   }
 
-  const status = summary.inserted > 0 || summary.failedFeeds.length < RSS_FEEDS.length ? 200 : 502;
-
-  return Response.json(
-    {
-      success: status === 200,
-      message: status === 200 ? "Articles fetched and saved." : "All feeds failed.",
-      summary,
-    },
-    { status }
-  );
+  console.info("Background news fetch completed.", {
+    success: summary.inserted > 0 || summary.failedFeeds.length < RSS_FEEDS.length,
+    summary,
+  });
 }
