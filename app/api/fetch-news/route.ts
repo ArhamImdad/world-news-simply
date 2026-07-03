@@ -5,21 +5,11 @@ import { getUnsplashImage } from "@/lib/unsplash";
 
 export const dynamic = "force-dynamic";
 
-const ARTICLE_DELAY_MS = 8000;
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 2;
 const requestLog: number[] = [];
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-type JobSummary = {
-  feedsChecked: number;
-  inserted: number;
-  skippedDuplicates: number;
-  skippedInvalid: number;
-  failedFeeds: Array<{ url: string; error: string }>;
-  failedArticles: Array<{ feedUrl: string; title: string; error: string }>;
-};
 
 function isRateLimited() {
   const now = Date.now();
@@ -80,99 +70,70 @@ async function insertArticle(payload: Record<string, unknown>) {
 }
 
 export async function GET() {
-  if (isRateLimited()) {
-    return Response.json(
-      {
-        success: false,
-        message: "Rate limit exceeded. Try again later.",
-      },
-      { status: 429 }
-    );
-  }
-
-  processAllFeeds().catch((error) => {
-    console.error("Background news fetch failed:", error);
-  });
-
-  return Response.json({
-    success: true,
-    message: "News fetch started in background!",
-  });
-}
-
-async function processAllFeeds() {
-  const summary: JobSummary = {
-    feedsChecked: 0,
-    inserted: 0,
-    skippedDuplicates: 0,
-    skippedInvalid: 0,
-    failedFeeds: [],
-    failedArticles: [],
-  };
-
-  for (const feed of RSS_FEEDS) {
-    summary.feedsChecked += 1;
-
-    let parsedFeed;
-    try {
-      parsedFeed = await parseFeed(feed.url);
-    } catch (error) {
-      summary.failedFeeds.push({ url: feed.url, error: getErrorMessage(error) });
-      continue;
+  try {
+    if (isRateLimited()) {
+      return Response.json(
+        {
+          success: false,
+          message: "Rate limit exceeded. Try again later.",
+        },
+        { status: 429 }
+      );
     }
 
-    const items = parsedFeed.items.slice(0, 1);
+    const randomFeed = RSS_FEEDS[Math.floor(Math.random() * RSS_FEEDS.length)];
+    const feed = await parseFeed(randomFeed.url);
+    const items = feed.items.slice(0, 2);
+    let inserted = 0;
 
     for (const item of items) {
       const title = item.title?.trim() || "";
       const content = (item.contentSnippet || item.content || "").trim();
       const sourceUrl = item.link || "";
 
-      if (!title || !content) {
-        summary.skippedInvalid += 1;
+      if (!title || !content) continue;
+
+      if (await articleExists(title, sourceUrl)) {
         continue;
       }
 
-      try {
-        if (await articleExists(title, sourceUrl)) {
-          summary.skippedDuplicates += 1;
-          continue;
-        }
+      const rewritten = await rewriteWithGroq(title, content);
+      const imageUrl = await getUnsplashImage(
+        randomFeed.articleTypeHint === "opinion" ? "editorial opinion" : randomFeed.categoryHint
+      );
 
-        const rewritten = await rewriteWithGroq(title, content);
-        const imageUrl = await getUnsplashImage(
-          feed.articleTypeHint === "opinion" ? "editorial opinion" : feed.categoryHint
-        );
+      await insertArticle({
+        title: rewritten.title,
+        content: rewritten.content,
+        summary: rewritten.summary,
+        image_url: imageUrl,
+        source_url: sourceUrl,
+        category: randomFeed.categoryHint,
+        region: randomFeed.regionHint ?? "Global",
+        article_type: randomFeed.articleTypeHint || "news",
+        is_breaking: rewritten.is_breaking || false,
+        is_editors_pick: false,
+        read_time: rewritten.read_time || 3,
+        views: 0,
+      });
 
-        await insertArticle({
-          title: rewritten.title,
-          content: rewritten.content,
-          summary: rewritten.summary,
-          image_url: imageUrl,
-          source_url: sourceUrl,
-          category: feed.categoryHint,
-          region: feed.regionHint ?? "Global",
-          article_type: feed.articleTypeHint || "news",
-          is_breaking: rewritten.is_breaking || false,
-          is_editors_pick: false,
-          read_time: rewritten.read_time || 3,
-          views: 0,
-        });
-
-        summary.inserted += 1;
-        await sleep(ARTICLE_DELAY_MS);
-      } catch (error) {
-        summary.failedArticles.push({
-          feedUrl: feed.url,
-          title,
-          error: getErrorMessage(error),
-        });
-      }
+      inserted += 1;
+      await sleep(4000);
     }
-  }
 
-  console.info("Background news fetch completed.", {
-    success: summary.inserted > 0 || summary.failedFeeds.length < RSS_FEEDS.length,
-    summary,
-  });
+    return Response.json({
+      success: true,
+      feed: randomFeed.url,
+      inserted,
+    });
+  } catch (error) {
+    console.error(error);
+    return Response.json(
+      {
+        success: false,
+        error: getErrorMessage(error),
+      },
+      { status: 500 }
+    );
+  }
 }
