@@ -10,6 +10,7 @@ import ScrollEnhancements from "./scroll-enhancements";
 import ScrollLink from "./scroll-link";
 import SearchPanel from "./search-panel";
 import ThemeToggle from "./theme-toggle";
+import { getArticlePath } from "@/lib/article-url";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
 import { supabase, type Article } from "@/lib/supabase";
 import { ARTICLE_SELECT } from "@/types/article";
@@ -190,7 +191,7 @@ function getArticleType(article: Article) {
 }
 
 function getShareLinks(article: Article) {
-  const path = `/article/${article.id}`;
+  const path = getArticlePath(article);
   const text = encodeURIComponent(article.title);
   const url = encodeURIComponent(path);
 
@@ -618,7 +619,7 @@ function HeroSection({ articles }: { articles: Article[] }) {
   return (
     <section className="hero-grid" aria-label="Top stories">
       <article className="hero-lead">
-        <Link href={`/article/${lead.id}`} className="hero-lead-link">
+        <Link href={getArticlePath(lead)} className="hero-lead-link">
           <div className="hero-image">
             <Image
               src={lead.image_url}
@@ -646,9 +647,9 @@ function HeroSection({ articles }: { articles: Article[] }) {
       <div className="hero-stack">
         {sideStories.slice(0, 4).map((article) => (
           <article key={article.id} className="stack-story">
-            <Link href={`/article/${article.id}`} className="stack-story-link">
+            <Link href={getArticlePath(article)} className="stack-story-link">
               <div className="stack-thumb">
-                <Image src={article.image_url} alt={article.title} fill sizes="140px" />
+                <Image src={article.image_url} alt={article.title} fill sizes="140px" loading="lazy" />
               </div>
               <div>
                 <StatusBadges article={article} />
@@ -677,8 +678,14 @@ function EditorsPickSection({ articles }: { articles: Article[] }) {
       <div className="editors-grid">
         {picks.map((article) => (
           <article key={article.id} className="editors-card">
-            <Link href={`/article/${article.id}`}>
-              <Image src={article.image_url} alt={article.title} fill sizes="(max-width: 768px) 90vw, 33vw" />
+            <Link href={getArticlePath(article)}>
+              <Image
+                src={article.image_url}
+                alt={article.title}
+                fill
+                sizes="(max-width: 768px) 90vw, 33vw"
+                loading="lazy"
+              />
               <div className="editors-overlay" />
               <div className="editors-copy">
                 <span className="editors-badge">Editor&apos;s Pick</span>
@@ -705,9 +712,15 @@ function BreakingNewsSection({ articles }: { articles: Article[] }) {
       <div className="breaking-grid">
         {articles.slice(0, 4).map((article) => (
           <article key={article.id} className="breaking-card">
-            <Link href={`/article/${article.id}`}>
+            <Link href={getArticlePath(article)}>
               <div className="breaking-card-image">
-                <Image src={article.image_url} alt={article.title} fill sizes="(max-width: 768px) 50vw, 25vw" />
+                <Image
+                  src={article.image_url}
+                  alt={article.title}
+                  fill
+                  sizes="(max-width: 768px) 50vw, 25vw"
+                  loading="lazy"
+                />
               </div>
               <StatusBadges article={article} />
               <h3>{article.title}</h3>
@@ -725,9 +738,15 @@ function StoryCard({ article }: { article: Article }) {
 
   return (
     <article className={isOpinion ? "story-card opinion-card" : "story-card"}>
-      <Link href={`/article/${article.id}`} className="story-card-link">
+      <Link href={getArticlePath(article)} className="story-card-link">
         <div className="story-card-image">
-          <Image src={article.image_url} alt={article.title} fill sizes="(max-width: 768px) 90vw, 320px" />
+          <Image
+            src={article.image_url}
+            alt={article.title}
+            fill
+            sizes="(max-width: 768px) 90vw, 320px"
+            loading="lazy"
+          />
         </div>
         <div className="story-card-body">
           <StatusBadges article={article} />
@@ -775,7 +794,7 @@ function FeaturedBanner({ article }: { article?: Article }) {
 
   return (
     <section className="featured-banner" aria-label="Featured editorial story">
-      <Image src={article.image_url} alt={article.title} fill sizes="100vw" />
+      <Image src={article.image_url} alt={article.title} fill sizes="100vw" loading="lazy" />
       <div className="featured-banner-overlay" />
       <div className="featured-banner-content">
         <p className="section-kicker">Featured Story</p>
@@ -805,7 +824,13 @@ function VideoNewsSection({ videos }: { videos: VideoItem[] }) {
           <article key={video.id} className="video-card">
             <a href={video.url} target="_blank" rel="noopener noreferrer">
               <div className="video-thumb">
-                <Image src={video.thumbnail} alt={video.title} fill sizes="(max-width: 768px) 50vw, 25vw" />
+                <Image
+                  src={video.thumbnail}
+                  alt={video.title}
+                  fill
+                  sizes="(max-width: 768px) 50vw, 25vw"
+                  loading="lazy"
+                />
                 <span>{video.duration}</span>
               </div>
               <div className="video-card-body">
@@ -834,8 +859,8 @@ function LongReadsSection({ articles }: { articles: Article[] }) {
           <span>Deep editorial reads</span>
         </div>
         <article className="long-read-hero">
-          <Link href={`/article/${lead.id}`}>
-            <Image src={lead.image_url} alt={lead.title} fill sizes="100vw" />
+          <Link href={getArticlePath(lead)}>
+            <Image src={lead.image_url} alt={lead.title} fill sizes="100vw" loading="lazy" />
             <div className="long-read-overlay" />
             <div className="long-read-copy">
               <span className="long-read-badge">Long Read</span>
@@ -893,7 +918,7 @@ function TrendingNow({ articles }: { articles: Article[] }) {
       <ol>
         {articles.slice(0, 5).map((article) => (
           <li key={article.id}>
-            <Link href={`/article/${article.id}`}>
+            <Link href={getArticlePath(article)}>
               <span>{article.category}</span>
               <strong>{article.title}</strong>
               <time dateTime={article.created_at}>{formatTimeAgo(article.created_at)}</time>

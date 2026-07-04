@@ -26,6 +26,7 @@ export type ArticleType = (typeof ARTICLE_TYPES)[number];
 
 export type Article = {
   id: string;
+  slug?: string | null;
   title: string;
   content: string;
   summary: string;
@@ -50,4 +51,4 @@ export type RewrittenArticle = {
 };
 
 export const ARTICLE_SELECT =
-  "id,title,content,summary,image_url,source_url,category,created_at,region,article_type,is_breaking,is_editors_pick,read_time,views";
+  "id,slug,title,content,summary,image_url,source_url,category,created_at,region,article_type,is_breaking,is_editors_pick,read_time,views";

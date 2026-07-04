@@ -1,11 +1,12 @@
 import Link from "next/link";
 import Image from "next/image";
+import { getArticlePath } from "@/lib/article-url";
 import type { Article } from "@/types/article";
 
 export default function ArticleCard({ article }: { article: Article }) {
   return (
     <article className="story-card">
-      <Link href={`/article/${article.id}`} className="story-card-link">
+      <Link href={getArticlePath(article)} className="story-card-link">
         <div className="story-card-image">
           <Image
             src={article.image_url}

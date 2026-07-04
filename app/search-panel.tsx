@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { getArticlePath } from "@/lib/article-url";
 import { supabase, type Article } from "@/lib/supabase";
 
 function SearchIcon() {
@@ -175,13 +176,14 @@ export default function SearchPanel() {
             <div className="search-results-grid">
               {results.map((article) => (
                 <article key={article.id} className="search-card">
-                  <Link href={`/article/${article.id}`} onClick={closeSearch}>
+                  <Link href={getArticlePath(article)} onClick={closeSearch}>
                     <div className="search-card-image">
                       <Image
                         src={article.image_url}
                         alt={article.title}
                         fill
                         sizes="(max-width: 768px) 90vw, 320px"
+                        loading="lazy"
                       />
                     </div>
                     <div className="search-card-body">

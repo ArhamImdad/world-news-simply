@@ -41,6 +41,14 @@ Return ONLY a JSON object with these fields:
 - is_breaking: true if urgent breaking news, false otherwise
 - read_time: estimated reading time in minutes (1-15)
 
+Write the article with SEO in mind:
+- Use the main topic as keyword naturally 3-4 times
+- Include related keywords naturally
+- First paragraph should summarize the whole story
+- Use short sentences (max 20 words)
+- Use subheadings (H2) every 2-3 paragraphs
+- End with a conclusion paragraph
+
 Original title: ${title}
 Original content: ${content}
 

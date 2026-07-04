@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useTransition } from "react";
+import { getArticlePath } from "@/lib/article-url";
 import { supabase } from "@/lib/supabase";
 import { ARTICLE_SELECT, type Article } from "@/types/article";
 
@@ -25,7 +26,7 @@ function formatDate(value: string) {
 function CategoryCard({ article, isNew }: { article: Article; isNew?: boolean }) {
   return (
     <article className={isNew ? "story-card load-more-new-card" : "story-card"}>
-      <Link href={`/article/${article.id}`} className="story-card-link">
+      <Link href={getArticlePath(article)} className="story-card-link">
         <div className="story-card-image">
           <Image
             src={article.image_url}

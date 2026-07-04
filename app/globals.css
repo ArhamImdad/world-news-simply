@@ -2156,6 +2156,13 @@ html.dark .theme-toggle-moon {
   margin: 0 0 1.3rem;
 }
 
+.article-body h2 {
+  margin: 2rem 0 0.85rem;
+  font-family: var(--headline);
+  font-size: clamp(1.45rem, 2.5vw, 2rem);
+  line-height: 1.2;
+}
+
 .pull-quote {
   margin: 2rem 0;
   padding: 1.1rem 0 1.1rem 1.4rem;
@@ -2696,6 +2703,15 @@ html.dark .theme-toggle-moon {
   .article-body {
     font-size: 1.05rem;
     line-height: 1.75;
+  }
+
+  .ticker-track,
+  .market-track {
+    animation-duration: 90s;
+  }
+
+  .load-more-new-card {
+    animation: none;
   }
 }
 

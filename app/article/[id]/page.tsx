@@ -7,6 +7,7 @@ import ScrollEnhancements from "@/app/scroll-enhancements";
 import ScrollLink from "@/app/scroll-link";
 import SearchPanel from "@/app/search-panel";
 import ThemeToggle from "@/app/theme-toggle";
+import { getArticlePath } from "@/lib/article-url";
 import { getPublicSiteUrl } from "@/lib/env";
 import { supabase, type Article } from "@/lib/supabase";
 import { ARTICLE_SELECT } from "@/types/article";
@@ -14,6 +15,7 @@ import { ARTICLE_SELECT } from "@/types/article";
 export const dynamic = "force-dynamic";
 const navCategories = ["All", "World", "Politics", "Technology", "Business", "Sports", "Health", "Opinion"];
 const navRegions = ["All", "Asia", "Europe", "Middle East", "Americas", "Africa"];
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en", {
@@ -71,7 +73,7 @@ function isRecent(article: Article, hours: number) {
 }
 
 function getShareLinks(article: Article) {
-  const path = `/article/${article.id}`;
+  const path = getArticlePath(article);
   const text = encodeURIComponent(article.title);
   const url = encodeURIComponent(path);
 
@@ -83,11 +85,12 @@ function getShareLinks(article: Article) {
 }
 
 async function getArticle(id: string) {
-  const { data, error } = await supabase
+  const query = supabase
     .from("articles")
-    .select(ARTICLE_SELECT)
-    .eq("id", id)
-    .single();
+    .select(ARTICLE_SELECT);
+  const { data, error } = uuidPattern.test(id)
+    ? await query.eq("id", id).single()
+    : await query.eq("slug", id).single();
 
   if (error) {
     console.error("Failed to load article:", error.message);
@@ -130,13 +133,14 @@ export async function generateMetadata({
     };
   }
 
-  const url = `${siteUrl}/article/${article.id}`;
+  const url = `${siteUrl}${getArticlePath(article)}`;
 
   return {
     title: {
-      absolute: article.title,
+      absolute: `${article.title} | World News Simply`,
     },
     description: article.summary,
+    keywords: article.title.split(/\s+/).filter(Boolean).join(", "),
     alternates: {
       canonical: url,
     },
@@ -300,13 +304,14 @@ function RelatedArticles({ articles }: { articles: Article[] }) {
       <div className="related-grid">
         {articles.map((article) => (
           <article key={article.id} className="story-card">
-            <Link href={`/article/${article.id}`} className="story-card-link">
+            <Link href={getArticlePath(article)} className="story-card-link">
               <div className="story-card-image">
                 <Image
                   src={article.image_url}
                   alt={article.title}
                   fill
                   sizes="(max-width: 768px) 90vw, 320px"
+                  loading="lazy"
                 />
               </div>
               <div className="story-card-body">
@@ -341,27 +346,54 @@ export default async function ArticlePage({
     .map((paragraph) => paragraph.trim())
     .filter(Boolean);
   const siteUrl = getPublicSiteUrl();
+  const articleUrl = `${siteUrl}${getArticlePath(article)}`;
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "NewsArticle",
     headline: article.title,
     description: article.summary,
-    image: [article.image_url],
+    image: article.image_url,
     datePublished: article.created_at,
     dateModified: article.created_at,
     author: {
       "@type": "Organization",
-      name: "World News Simply Staff",
+      name: "World News Simply",
     },
     publisher: {
       "@type": "Organization",
       name: "World News Simply",
       logo: {
         "@type": "ImageObject",
-        url: `${siteUrl}/globe.svg`,
+        url: `${siteUrl}/favicon.ico`,
       },
     },
-    mainEntityOfPage: `${siteUrl}/article/${article.id}`,
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": articleUrl,
+    },
+  };
+  const breadcrumbData = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Home",
+        item: siteUrl,
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: article.category,
+        item: `${siteUrl}/?category=${encodeURIComponent(article.category)}`,
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: article.title,
+      },
+    ],
   };
 
   return (
@@ -372,6 +404,10 @@ export default async function ArticlePage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbData) }}
+      />
 
       <article className="article-page">
         <nav className="breadcrumb" aria-label="Breadcrumb">
@@ -379,7 +415,7 @@ export default async function ArticlePage({
           <span>/</span>
           <ScrollLink href={`/?category=${article.category}`}>{article.category}</ScrollLink>
           <span>/</span>
-          <span>Story</span>
+          <span>{article.title}</span>
         </nav>
 
         <header className="article-header">
@@ -416,7 +452,7 @@ export default async function ArticlePage({
                 {article.article_type === "long-read" && index === 2 ? (
                   <blockquote className="pull-quote">{article.summary}</blockquote>
                 ) : null}
-                <p>{paragraph}</p>
+                {paragraph.startsWith("## ") ? <h2>{paragraph.replace(/^##\s+/, "")}</h2> : <p>{paragraph}</p>}
               </div>
             ))
           ) : (

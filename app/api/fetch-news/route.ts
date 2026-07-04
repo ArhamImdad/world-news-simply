@@ -29,6 +29,17 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
+function generateSlug(title: string): string {
+  const slug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9 -]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .trim();
+
+  return `${slug || "article"}-${Date.now()}`;
+}
+
 async function articleExists(title: string, sourceUrl: string) {
   const { data: titleMatch, error: titleError } = await supabase
     .from("articles")
@@ -104,6 +115,7 @@ export async function GET() {
 
       await insertArticle({
         title: rewritten.title,
+        slug: generateSlug(rewritten.title),
         content: rewritten.content,
         summary: rewritten.summary,
         image_url: imageUrl,
