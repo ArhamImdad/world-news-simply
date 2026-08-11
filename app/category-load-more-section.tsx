@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
+import Image from "@/components/SafeImage";
 import { useState, useTransition } from "react";
 import { getArticlePath } from "@/lib/article-url";
 import { supabase } from "@/lib/supabase";
@@ -47,7 +47,7 @@ function CategoryCard({ article, isNew }: { article: Article; isNew?: boolean })
           <h3>{article.title}</h3>
           <p>{article.summary}</p>
           <div className="card-footer-meta">
-            <span>World News Simply Staff</span>
+            <span>World News Simply Editorial Desk</span>
           </div>
         </div>
       </Link>

@@ -2000,6 +2000,43 @@ html.dark .theme-toggle-moon {
   border-top: 5px solid var(--accent);
 }
 
+.trust-page {
+  width: min(100% - 2rem, 820px);
+  margin: 0 auto;
+  padding: clamp(3rem, 7vw, 6rem) 0;
+}
+
+.trust-page h1 {
+  margin: 0.35rem 0 1rem;
+  font-family: var(--headline);
+  font-size: clamp(2.5rem, 7vw, 5rem);
+  line-height: 1;
+}
+
+.trust-intro {
+  color: var(--muted);
+  font-size: 1.2rem;
+  line-height: 1.65;
+}
+
+.trust-content {
+  margin-top: 2.5rem;
+  font-size: 1.03rem;
+  line-height: 1.75;
+}
+
+.trust-content h2 {
+  margin: 2rem 0 0.5rem;
+  font-family: var(--headline);
+}
+
+.trust-content a {
+  color: var(--accent);
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
 .footer-grid {
   display: grid;
   grid-template-columns: 1.25fr 0.8fr 0.8fr 1.2fr;

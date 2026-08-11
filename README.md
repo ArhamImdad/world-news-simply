@@ -1,84 +1,69 @@
 # World News Simply
 
-World News Simply is a Next.js news blog that turns global headlines into clear, readable briefings. It includes category coverage, regional filters, opinion pieces, long reads, video news, weather, market widgets, search, and article detail pages.
+World News Simply is an independent Next.js publication that turns attributed public reporting into concise news briefings. It uses Supabase for article data, Groq for server-side drafting assistance, optional Unsplash images, and Cloudflare Workers through OpenNext for production hosting.
 
-![World News Simply screenshot placeholder](public/og-default.svg)
+## Local setup
 
-## Tech Stack
-
-- Next.js App Router
-- React
-- TypeScript
-- Tailwind CSS
-- Supabase
-- Groq
-- RSS Parser
-- Unsplash API
-- Open-Meteo API
-
-## Features
-
-- Editorial homepage with hero, breaking news, editor picks, category sections, opinion, video, and long reads
-- Article detail pages with related articles, metadata, structured data, and share buttons
-- Supabase-backed search using case-insensitive `ilike`
-- Persistent dark mode with system preference fallback
-- Mobile full-screen navigation menu
-- Regional filters for Asia, Europe, Middle East, Americas, and Africa
-- Category load-more pagination
-- Weather and market sidebar widgets
-- Dynamic sitemap and robots.txt
-- Production loading, error, and 404 states
-
-## Getting Started
-
-Install dependencies:
+Requirements: a current Node.js release compatible with Next.js 16 and npm.
 
 ```bash
-npm install
-```
-
-Create a local environment file:
-
-```bash
-cp .env.example .env.local
-```
-
-Fill in the required values:
-
-```bash
-GROQ_API_KEY=your_groq_api_key_from_console_groq_com
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_public_key
-UNSPLASH_ACCESS_KEY=your_unsplash_access_key
-```
-
-Run the development server:
-
-```bash
+npm ci
+copy .env.example .env.local
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+The local site is available at `http://localhost:3000`.
 
-## Environment Variables
+Required environment variable names:
 
-- `GROQ_API_KEY`: Server-side key used to rewrite RSS articles.
-- `NEXT_PUBLIC_SUPABASE_URL`: Public Supabase project URL.
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Public Supabase anon key for reads/search.
-- `UNSPLASH_ACCESS_KEY`: Server-side key used to fetch article images.
+- `GROQ_API_KEY` — server-only Groq key.
+- `NEXT_PUBLIC_SUPABASE_URL` — public Supabase project URL.
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — public, read-only Supabase anon key.
+- `SUPABASE_SERVICE_ROLE_KEY` — server-only Supabase key used by ingestion.
+- `UNSPLASH_ACCESS_KEY` — optional server-only image API key.
+- `NEXT_PUBLIC_SITE_URL` — public origin with no path, such as the current `workers.dev` URL.
+- `CRON_SECRET` — long random server-only bearer secret for ingestion routes.
+- `NEXT_PUBLIC_GOOGLE_ANALYTICS_ID` — optional Analytics measurement ID.
+- `GOOGLE_SITE_VERIFICATION` — optional Search Console verification token.
 
-## Database Setup
+Never expose the service-role, Groq, Unsplash, or cron values through a `NEXT_PUBLIC_` variable. `.env.local` and `.dev.vars*` are ignored; `.env.example` contains placeholders only.
 
-Run `supabase-articles-extra-columns.sql` in the Supabase SQL Editor to add optional article metadata columns and indexes.
+## Checks and builds
 
-## Deploy to Vercel
+```bash
+npm run lint
+npm run typecheck
+npm run build
+npm run cf:build
+npm run cf:dry-run
+```
 
-1. Push the repository to GitHub.
-2. Import the project in Vercel.
-3. Add the environment variables listed above.
-4. Deploy.
-5. Configure any scheduled job to call `/api/cron`.
+`npm run cf:dry-run` expects `.open-next` output, so run `npm run cf:build` first.
 
-## License
+## Cloudflare Workers / OpenNext
 
-MIT
+Production uses the Worker `world-news-simply`. `WORKER_SELF_REFERENCE` must remain bound to that exact service name. The generated OpenNext handler remains in `.open-next/worker.js`; `custom-worker.ts` wraps it to add a scheduled event handler.
+
+- Build only: `npm run cf:build`
+- Preview: `npm run preview`
+- Deploy: `npm run deploy`
+
+The repository does not deploy automatically from local commands in this setup. If Cloudflare Workers Builds is connected to GitHub, configure the build/deploy command according to the selected Workers Builds workflow; the project deployment command is `npm run deploy`. Keep production variables and secrets in Cloudflare, with `keep_vars` enabled as currently configured.
+
+## Scheduled news updates
+
+`wrangler.jsonc` declares `0 8 * * *` (08:00 UTC daily). Cloudflare invokes `custom-worker.ts`, which internally calls the protected `/api/cron` route. `/api/cron` and `/api/fetch-news` share the same `updateNews()` server function and require `Authorization: Bearer <CRON_SECRET>` for manual calls.
+
+After the next deployment, verify the Cron Trigger in Cloudflare Workers & Pages → `world-news-simply` → Triggers. Do not create a second trigger for the same schedule.
+
+## Database
+
+Run `supabase-articles-extra-columns.sql` in the Supabase SQL editor after reviewing it. Public/anon access should be SELECT-only. Ingestion uses `SUPABASE_SERVICE_ROLE_KEY` on the server; never grant public INSERT, UPDATE, or DELETE access.
+
+## Search and site URL
+
+- Sitemap: `/sitemap.xml`
+- Robots rules: `/robots.txt`
+- Article canonicals and structured data use `NEXT_PUBLIC_SITE_URL`.
+
+When a custom domain is ready, attach it to the Worker, set `NEXT_PUBLIC_SITE_URL=https://your-domain.example` in Cloudflare, redeploy, and submit the new sitemap URL to Search Console. No application source URL needs to change.

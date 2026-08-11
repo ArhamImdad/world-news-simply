@@ -1,19 +1,18 @@
-import { getServerEnv } from "@/lib/env";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
 
-const FALLBACK_IMAGE = "https://source.unsplash.com/random";
+const FALLBACK_IMAGE = "/og-default.svg";
 
 export async function getUnsplashImage(query: string) {
-  const env = getServerEnv();
+  const accessKey = process.env.UNSPLASH_ACCESS_KEY;
 
-  if (!env.UNSPLASH_ACCESS_KEY) {
+  if (!accessKey) {
     return FALLBACK_IMAGE;
   }
 
   try {
     const response = await fetchWithTimeout(
       `https://api.unsplash.com/photos/random?query=${encodeURIComponent(query)}&orientation=landscape`,
-      { headers: { Authorization: `Client-ID ${env.UNSPLASH_ACCESS_KEY}` } }
+      { headers: { Authorization: `Client-ID ${accessKey}` } }
     );
 
     if (!response.ok) {

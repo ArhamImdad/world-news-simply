@@ -46,7 +46,6 @@ export type RewrittenArticle = {
   title: string;
   content: string;
   summary: string;
-  is_breaking: boolean;
   read_time: number;
 };
 

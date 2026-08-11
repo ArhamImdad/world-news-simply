@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Image from "next/image";
+import Image from "@/components/SafeImage";
 import { getArticlePath } from "@/lib/article-url";
 import type { Article } from "@/types/article";
 

@@ -6,6 +6,10 @@ import { ThemeProvider } from "./theme-provider";
 import "./globals.css";
 
 const siteUrl = getPublicSiteUrl();
+const googleAnalyticsId = /^G-[A-Z0-9]+$/.test(process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID || "")
+  ? process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID
+  : undefined;
+const googleVerification = process.env.GOOGLE_SITE_VERIFICATION;
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -39,9 +43,7 @@ export const metadata: Metadata = {
     icon: "/favicon.ico",
     apple: "/apple-touch-icon.png",
   },
-  verification: {
-    google: "MHFiGDajc6_jJjXyDx0unjDUSFXUm0x6IJKTo0Rkwgg",
-  },
+  verification: googleVerification ? { google: googleVerification } : undefined,
 };
 
 export default function RootLayout({
@@ -57,19 +59,23 @@ export default function RootLayout({
             __html: `try{var t=localStorage.getItem('world-news-theme');var d=t?t==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',d);document.documentElement.dataset.theme=d?'dark':'light'}catch(e){}`,
           }}
         />
-        <script async src="https://www.googletagmanager.com/gtag/js?id=G-BQ9ME85BTV" />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
+        {googleAnalyticsId ? (
+          <>
+            <script async src={`https://www.googletagmanager.com/gtag/js?id=${googleAnalyticsId}`} />
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `
               window.dataLayer = window.dataLayer || [];
               function gtag(){dataLayer.push(arguments);}
               gtag('js', new Date());
-              gtag('config', 'G-BQ9ME85BTV');
+              gtag('config', '${googleAnalyticsId}', { anonymize_ip: true });
             `,
-          }}
-        />
+              }}
+            />
+          </>
+        ) : null}
       </head>
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <ThemeProvider>
           <Suspense fallback={null}>
             <ScrollToTop />

@@ -1,13 +1,16 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "world-news-simply",
-  "main": ".open-next/worker.js",
+  "main": "custom-worker.ts",
   "keep_vars": true,
   "compatibility_date": "2026-08-10",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
+  },
+  "triggers": {
+    "crons": ["0 8 * * *"]
   },
   "services": [
     {

@@ -1,33 +1,44 @@
 import type { MetadataRoute } from "next";
-import { createClient } from "@supabase/supabase-js";
+import { getArticlePath } from "@/lib/article-url";
+import { getPublicSiteUrl } from "@/lib/env";
+import { supabase } from "@/lib/supabase";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const staticPages = [
+  "",
+  "/about",
+  "/contact",
+  "/editorial-policy",
+  "/corrections-policy",
+  "/privacy",
+  "/terms",
+  "/disclaimer",
+];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = "https://world-news-simply.vercel.app";
-
-  const { data: articles } = await supabase
+  const baseUrl = getPublicSiteUrl();
+  const { data: articles, error } = await supabase
     .from("articles")
-    .select("id, slug, created_at")
+    .select("id,slug,created_at")
     .order("created_at", { ascending: false });
 
-  const articleUrls = (articles || []).map((article) => ({
-    url: `${baseUrl}/article/${article.slug || article.id}`,
-    lastModified: new Date(article.created_at),
-    changeFrequency: "daily" as const,
-    priority: 0.8,
-  }));
+  if (error) console.error("Sitemap article query failed:", error.message);
+
+  const articleUrls = (articles || []).map((article) => {
+    const modified = new Date(article.created_at);
+    return {
+      url: `${baseUrl}${getArticlePath(article)}`,
+      ...(Number.isNaN(modified.getTime()) ? {} : { lastModified: modified }),
+      changeFrequency: "weekly" as const,
+      priority: 0.7,
+    };
+  });
 
   return [
-    {
-      url: baseUrl,
-      lastModified: new Date(),
-      changeFrequency: "hourly" as const,
-      priority: 1,
-    },
+    ...staticPages.map((path, index) => ({
+      url: `${baseUrl}${path}`,
+      changeFrequency: (index === 0 ? "daily" : "monthly") as "daily" | "monthly",
+      priority: index === 0 ? 1 : 0.4,
+    })),
     ...articleUrls,
   ];
 }

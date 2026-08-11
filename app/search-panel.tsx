@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
+import Image from "@/components/SafeImage";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getArticlePath } from "@/lib/article-url";
 import { supabase, type Article } from "@/lib/supabase";

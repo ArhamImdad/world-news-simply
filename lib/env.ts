@@ -1,12 +1,4 @@
-type ServerEnv = {
-  GROQ_API_KEY: string;
-  NEXT_PUBLIC_SUPABASE_URL: string;
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: string;
-  UNSPLASH_ACCESS_KEY?: string;
-  NEXT_PUBLIC_SITE_URL: string;
-};
-
-function readRequiredEnv(name: keyof ServerEnv, fallback?: string) {
+function readRequiredEnv(name: string, fallback?: string) {
   const value = process.env[name] || fallback;
 
   if (!value) {
@@ -14,16 +6,6 @@ function readRequiredEnv(name: keyof ServerEnv, fallback?: string) {
   }
 
   return value;
-}
-
-export function getServerEnv(): ServerEnv {
-  return {
-    GROQ_API_KEY: readRequiredEnv("GROQ_API_KEY"),
-    NEXT_PUBLIC_SUPABASE_URL: readRequiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: readRequiredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
-    UNSPLASH_ACCESS_KEY: process.env.UNSPLASH_ACCESS_KEY,
-    NEXT_PUBLIC_SITE_URL: readRequiredEnv("NEXT_PUBLIC_SITE_URL", "http://localhost:3000"),
-  };
 }
 
 export function getSupabasePublicEnv() {
@@ -41,5 +23,18 @@ export function getSupabasePublicEnv() {
 }
 
 export function getPublicSiteUrl() {
-  return process.env.NEXT_PUBLIC_SITE_URL || "https://world-news-simply.vercel.app";
+  const configuredUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  const fallback = "http://localhost:3000";
+
+  try {
+    const url = new URL(configuredUrl || fallback);
+    if (!['http:', 'https:'].includes(url.protocol)) return fallback;
+    return url.origin;
+  } catch {
+    return fallback;
+  }
+}
+
+export function getServerSecret(name: "GROQ_API_KEY" | "SUPABASE_SERVICE_ROLE_KEY" | "CRON_SECRET") {
+  return readRequiredEnv(name);
 }

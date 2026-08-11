@@ -17,6 +17,15 @@ CREATE INDEX IF NOT EXISTS idx_articles_region
 CREATE INDEX IF NOT EXISTS idx_articles_type
   ON articles(article_type);
 
+-- Run this duplicate check before enabling the unique source URL index:
+-- SELECT source_url, count(*) FROM articles
+-- WHERE source_url IS NOT NULL AND source_url <> ''
+-- GROUP BY source_url HAVING count(*) > 1;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_articles_source_url_unique
+  ON articles(source_url)
+  WHERE source_url IS NOT NULL AND source_url <> '';
+
 -- Verify RLS in Supabase dashboard:
 -- 1. Public clients should only be able to SELECT published article data.
--- 2. INSERT/UPDATE/DELETE should be restricted to trusted server-side credentials.
+-- 2. INSERT/UPDATE/DELETE must be restricted to the service role. The application
+--    performs ingestion with SUPABASE_SERVICE_ROLE_KEY only on the server.

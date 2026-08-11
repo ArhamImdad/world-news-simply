@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Image from "next/image";
+import Image from "@/components/SafeImage";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import MobileMenu from "@/app/mobile-menu";
@@ -7,6 +7,7 @@ import ScrollEnhancements from "@/app/scroll-enhancements";
 import ScrollLink from "@/app/scroll-link";
 import SearchPanel from "@/app/search-panel";
 import ThemeToggle from "@/app/theme-toggle";
+import Footer from "@/components/Footer";
 import { getArticlePath } from "@/lib/article-url";
 import { getPublicSiteUrl } from "@/lib/env";
 import { supabase, type Article } from "@/lib/supabase";
@@ -63,25 +64,46 @@ function getViewCount(article: Article) {
   if (article.views && article.views > 0) {
     return article.views.toLocaleString("en-US");
   }
-
-  const seed = article.id.split("").reduce((total, char) => total + char.charCodeAt(0), 0);
-  return (1800 + (seed * 37) % 47000).toLocaleString("en-US");
+  return null;
 }
 
 function isRecent(article: Article, hours: number) {
-  return Date.now() - new Date(article.created_at).getTime() < hours * 60 * 60 * 1000;
+  const age = Date.now() - new Date(article.created_at).getTime();
+  return age >= 0 && age < hours * 60 * 60 * 1000;
 }
 
 function getShareLinks(article: Article) {
   const path = getArticlePath(article);
   const text = encodeURIComponent(article.title);
-  const url = encodeURIComponent(path);
+  const url = encodeURIComponent(`${getPublicSiteUrl()}${path}`);
 
   return [
     { label: "Twitter", href: `https://twitter.com/intent/tweet?text=${text}&url=${url}` },
     { label: "Facebook", href: `https://www.facebook.com/sharer/sharer.php?u=${url}` },
     { label: "WhatsApp", href: `https://wa.me/?text=${text}%20${url}` },
   ];
+}
+
+function getSource(article: Article) {
+  try {
+    const url = new URL(article.source_url);
+    if (!['http:', 'https:'].includes(url.protocol)) return null;
+    return { url: url.toString(), name: url.hostname.replace(/^www\./, "") };
+  } catch {
+    return null;
+  }
+}
+
+function getAbsoluteImageUrl(imageUrl: string, siteUrl: string) {
+  try {
+    return new URL(imageUrl, siteUrl).toString();
+  } catch {
+    return `${siteUrl}/og-default.svg`;
+  }
+}
+
+function serializeJsonLd(value: object) {
+  return JSON.stringify(value).replace(/</g, "\\u003c");
 }
 
 async function getArticle(id: string) {
@@ -140,7 +162,6 @@ export async function generateMetadata({
       absolute: `${article.title} | World News Simply`,
     },
     description: article.summary,
-    keywords: article.title.split(/\s+/).filter(Boolean).join(", "),
     alternates: {
       canonical: url,
     },
@@ -250,17 +271,10 @@ function ShareButtons({ article }: { article: Article }) {
 }
 
 function StatusBadges({ article }: { article: Article }) {
-  const showLive = isRecent(article, 1);
   const showNew = isRecent(article, 3);
 
   return (
     <div className="status-badges">
-      {showLive ? (
-        <span className="live-badge">
-          <span />
-          LIVE
-        </span>
-      ) : null}
       {article.is_breaking ? <span className="breaking-status">BREAKING</span> : null}
       {showNew ? <span className="new-status">NEW</span> : null}
       {article.article_type === "long-read" ? <span className="long-read-badge">Long Read</span> : null}
@@ -285,7 +299,7 @@ function AuthorAvatar() {
   return (
     <div className="author-chip article-author-chip">
       <span aria-hidden="true">W</span>
-      <strong>World News Simply Staff</strong>
+      <strong>World News Simply Editorial Desk</strong>
     </div>
   );
 }
@@ -347,30 +361,32 @@ export default async function ArticlePage({
     .filter(Boolean);
   const siteUrl = getPublicSiteUrl();
   const articleUrl = `${siteUrl}${getArticlePath(article)}`;
+  const source = getSource(article);
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "NewsArticle",
     headline: article.title,
     description: article.summary,
-    image: article.image_url,
+    image: [getAbsoluteImageUrl(article.image_url, siteUrl)],
     datePublished: article.created_at,
-    dateModified: article.created_at,
     author: {
       "@type": "Organization",
-      name: "World News Simply",
+      name: "World News Simply Editorial Desk",
+      url: `${siteUrl}/about`,
     },
     publisher: {
       "@type": "Organization",
       name: "World News Simply",
       logo: {
         "@type": "ImageObject",
-        url: `${siteUrl}/favicon.ico`,
+        url: `${siteUrl}/apple-touch-icon.png`,
       },
     },
     mainEntityOfPage: {
       "@type": "WebPage",
       "@id": articleUrl,
     },
+    url: articleUrl,
   };
   const breadcrumbData = {
     "@context": "https://schema.org",
@@ -402,11 +418,11 @@ export default async function ArticlePage({
       <ArticleNavbar />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(structuredData) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbData) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbData) }}
       />
 
       <article className="article-page">
@@ -427,10 +443,10 @@ export default async function ArticlePage({
             <AuthorAvatar />
           ) : null}
           <div className="article-byline">
-            <span>By World News Simply Staff</span>
+            <span>By World News Simply Editorial Desk</span>
             <time dateTime={article.created_at}>{formatDate(article.created_at)}</time>
-            <span>{getViewCount(article)} views</span>
-            <span>Updated {formatTimeAgo(article.created_at)}</span>
+            {getViewCount(article) ? <span>{getViewCount(article)} views</span> : null}
+            <span>Published {formatTimeAgo(article.created_at)}</span>
           </div>
           <ShareButtons article={article} />
         </header>
@@ -462,9 +478,9 @@ export default async function ArticlePage({
 
         <div className="article-footer-actions">
           <Link href="/">Back to homepage</Link>
-          {article.source_url ? (
-            <a href={article.source_url} target="_blank" rel="noopener noreferrer">
-              Read original article
+          {source ? (
+            <a href={source.url} target="_blank" rel="noopener noreferrer">
+              Source: {source.name}
             </a>
           ) : null}
         </div>
@@ -473,6 +489,7 @@ export default async function ArticlePage({
       <div className="page-wrap">
         <RelatedArticles articles={relatedArticles} />
       </div>
+      <Footer />
     </main>
   );
 }

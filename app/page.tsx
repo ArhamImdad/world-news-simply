@@ -1,16 +1,18 @@
 import Link from "next/link";
-import Image from "next/image";
+import Image from "@/components/SafeImage";
 import type { Metadata } from "next";
 import Parser from "rss-parser";
 import { Suspense } from "react";
 import CategoryLoadMoreSection from "./category-load-more-section";
-import HomeLoading from "./loading";
+import HomeLoading from "@/components/HomeLoading";
 import MobileMenu from "./mobile-menu";
 import ScrollEnhancements from "./scroll-enhancements";
 import ScrollLink from "./scroll-link";
 import SearchPanel from "./search-panel";
 import ThemeToggle from "./theme-toggle";
+import Footer from "@/components/Footer";
 import { getArticlePath } from "@/lib/article-url";
+import { getPublicSiteUrl } from "@/lib/env";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
 import { supabase, type Article } from "@/lib/supabase";
 import { ARTICLE_SELECT } from "@/types/article";
@@ -96,21 +98,7 @@ type MarketItem = {
   change: number;
 };
 
-type SidebarMarketItem = {
-  label: string;
-  value: string;
-  change: string;
-  direction: "up" | "down";
-};
-
 const PAGE_SIZE = 12;
-const sidebarMarkets: SidebarMarketItem[] = [
-  { label: "S&P 500", value: "5,234.18", change: "+0.42%", direction: "up" },
-  { label: "NASDAQ", value: "16,428.82", change: "+0.68%", direction: "up" },
-  { label: "DOW", value: "38,654.42", change: "-0.12%", direction: "down" },
-  { label: "BTC", value: "$67,234.00", change: "+2.34%", direction: "up" },
-  { label: "Gold", value: "$2,312.40", change: "+0.18%", direction: "up" },
-];
 
 function getDate(value: string) {
   return new Date(value);
@@ -146,7 +134,8 @@ function formatTimeAgo(value: string) {
 }
 
 function isRecent(article: Article, hours: number) {
-  return Date.now() - getDate(article.created_at).getTime() < hours * 60 * 60 * 1000;
+  const age = Date.now() - getDate(article.created_at).getTime();
+  return age >= 0 && age < hours * 60 * 60 * 1000;
 }
 
 function dedupeArticlesByTitle(articles: Article[]) {
@@ -178,10 +167,7 @@ function getViews(article: Article) {
     return article.views.toLocaleString("en-US");
   }
 
-  const seed = article.id
-    .split("")
-    .reduce((total, char) => total + char.charCodeAt(0), 0);
-  return (1600 + (seed * 31) % 38000).toLocaleString("en-US");
+  return null;
 }
 
 function getArticleType(article: Article) {
@@ -193,7 +179,7 @@ function getArticleType(article: Article) {
 function getShareLinks(article: Article) {
   const path = getArticlePath(article);
   const text = encodeURIComponent(article.title);
-  const url = encodeURIComponent(path);
+  const url = encodeURIComponent(`${getPublicSiteUrl()}${path}`);
 
   return [
     { label: "Twitter", href: `https://twitter.com/intent/tweet?text=${text}&url=${url}` },
@@ -286,13 +272,17 @@ function getWeatherCondition(code: number) {
   return { condition: "Clear", icon: "sun" };
 }
 
-async function getWeather(): Promise<WeatherData> {
+async function getWeather(): Promise<WeatherData | null> {
   try {
     const response = await fetchWithTimeout(
       "https://api.open-meteo.com/v1/forecast?latitude=31.5497&longitude=74.3436&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code",
       { next: { revalidate: 900 } }
     );
+    if (!response.ok) throw new Error(`Weather request failed with status ${response.status}`);
     const data = await response.json();
+    if (!Number.isFinite(Number(data.current?.temperature_2m))) {
+      throw new Error("Weather response did not contain current conditions.");
+    }
     const condition = getWeatherCondition(Number(data.current?.weather_code));
 
     return {
@@ -304,50 +294,58 @@ async function getWeather(): Promise<WeatherData> {
     };
   } catch (error) {
     console.error("Failed to load weather:", error);
-    return {
-      temperature: 29,
-      condition: "Sunny",
-      humidity: 55,
-      windSpeed: 8,
-      icon: "sun",
-    };
+    return null;
   }
 }
 
 async function getMarkets(): Promise<MarketItem[]> {
-  const fallback = [
-    { label: "S&P 500", value: "Market", change: 0.42 },
-    { label: "NASDAQ", value: "Market", change: 0.51 },
-    { label: "DOW", value: "Market", change: -0.18 },
-    { label: "BTC", value: "Crypto", change: 1.2 },
-    { label: "Gold", value: "Futures", change: -0.24 },
+  const instruments = [
+    { symbol: "^GSPC", label: "S&P 500" },
+    { symbol: "^IXIC", label: "NASDAQ" },
+    { symbol: "^DJI", label: "DOW" },
+    { symbol: "BTC-USD", label: "BTC" },
+    { symbol: "GC=F", label: "Gold" },
   ];
 
-  try {
-    const symbols = "%5EGSPC,%5EIXIC,%5EDJI,BTC-USD,GC=F";
-    const response = await fetchWithTimeout(
-      `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}`,
-      { next: { revalidate: 300 } }
-    );
-    const data = await response.json();
-    const quotes = data.quoteResponse?.result ?? [];
-    const labels: Record<string, string> = {
-      "^GSPC": "S&P 500",
-      "^IXIC": "NASDAQ",
-      "^DJI": "DOW",
-      "BTC-USD": "BTC",
-      "GC=F": "Gold",
-    };
+  const results = await Promise.allSettled(
+    instruments.map(async ({ symbol, label }) => {
+      // Yahoo's bulk quote endpoint requires authentication. The chart endpoint
+      // exposes the same current/previous-close values without a cookie or crumb.
+      const response = await fetchWithTimeout(
+        `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`,
+        {
+          headers: { Accept: "application/json" },
+          next: { revalidate: 300 },
+        }
+      );
+      if (!response.ok) {
+        throw new Error(`${symbol} request failed with status ${response.status}`);
+      }
 
-    return quotes.slice(0, 5).map((quote: Record<string, unknown>) => ({
-      label: labels[String(quote.symbol)] || String(quote.shortName || quote.symbol),
-      value: Number(quote.regularMarketPrice || 0).toLocaleString("en-US"),
-      change: Number(quote.regularMarketChangePercent || 0),
-    }));
-  } catch (error) {
-    console.error("Failed to load markets:", error);
-    return fallback;
+      const data = await response.json();
+      const meta = data.chart?.result?.[0]?.meta;
+      const price = Number(meta?.regularMarketPrice);
+      const previousClose = Number(meta?.chartPreviousClose ?? meta?.previousClose);
+
+      if (!Number.isFinite(price) || !Number.isFinite(previousClose) || previousClose === 0) {
+        throw new Error(`${symbol} response did not contain valid market prices`);
+      }
+
+      return {
+        label,
+        value: price.toLocaleString("en-US"),
+        change: ((price - previousClose) / previousClose) * 100,
+      } satisfies MarketItem;
+    })
+  );
+
+  const markets = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+  const failedCount = results.length - markets.length;
+  if (failedCount > 0) {
+    console.warn(`Unable to load ${failedCount} of ${results.length} market quotes.`);
   }
+
+  return markets;
 }
 
 function Icon({ name }: { name: "search" | "menu" | "sun" | "moon" | "globe" }) {
@@ -541,17 +539,10 @@ function Pagination({
 }
 
 function StatusBadges({ article }: { article: Article }) {
-  const showLive = isRecent(article, 1);
   const showNew = isRecent(article, 3);
 
   return (
     <div className="status-badges">
-      {showLive ? (
-        <span className="live-badge">
-          <span />
-          LIVE
-        </span>
-      ) : null}
       {article.is_breaking ? <span className="breaking-status">BREAKING</span> : null}
       {showNew ? <span className="new-status">NEW</span> : null}
       {article.article_type === "long-read" ? <span className="long-read-badge">Long Read</span> : null}
@@ -598,7 +589,7 @@ function AuthorAvatar() {
   return (
     <div className="author-chip">
       <span aria-hidden="true">W</span>
-      <strong>World News Simply Staff</strong>
+      <strong>World News Simply Editorial Desk</strong>
     </div>
   );
 }
@@ -635,9 +626,9 @@ function HeroSection({ articles }: { articles: Article[] }) {
             <h1>{lead.title}</h1>
             <p>{lead.summary}</p>
             <div className="byline-row">
-              <span>By World News Simply Staff</span>
+              <span>By World News Simply Editorial Desk</span>
               <span>{formatDate(lead.created_at)}</span>
-              <span>Updated {formatTimeAgo(lead.created_at)}</span>
+              <span>Published {formatTimeAgo(lead.created_at)}</span>
             </div>
           </div>
         </Link>
@@ -724,7 +715,7 @@ function BreakingNewsSection({ articles }: { articles: Article[] }) {
               </div>
               <StatusBadges article={article} />
               <h3>{article.title}</h3>
-              <p>Updated {formatTimeAgo(article.created_at)}</p>
+              <p>Published {formatTimeAgo(article.created_at)}</p>
             </Link>
           </article>
         ))}
@@ -755,8 +746,8 @@ function StoryCard({ article }: { article: Article }) {
           <h3>{article.title}</h3>
           <p>{article.summary}</p>
           <div className="card-footer-meta">
-            <span>World News Simply Staff</span>
-            <span>{getViews(article)} views</span>
+            <span>World News Simply Editorial Desk</span>
+            {getViews(article) ? <span>{getViews(article)} views</span> : null}
           </div>
         </div>
       </Link>
@@ -801,7 +792,7 @@ function FeaturedBanner({ article }: { article?: Article }) {
         <h2>{article.title}</h2>
         <p>{article.summary}</p>
         <div className="featured-meta">
-          <span>By World News Simply Staff</span>
+          <span>By World News Simply Editorial Desk</span>
           <span>{getReadTime(article)}</span>
           <span>{formatTimeAgo(article.created_at)}</span>
         </div>
@@ -882,7 +873,9 @@ function LongReadsSection({ articles }: { articles: Article[] }) {
   );
 }
 
-function WeatherWidget({ weather }: { weather: WeatherData }) {
+function WeatherWidget({ weather }: { weather: WeatherData | null }) {
+  if (!weather) return null;
+
   return (
     <section className="weather-widget" aria-label="Weather in Lahore Pakistan">
       <div className="sidebar-widget-heading">
@@ -913,8 +906,8 @@ function TrendingNow({ articles }: { articles: Article[] }) {
   if (articles.length === 0) return null;
 
   return (
-    <aside className="trending-now" aria-labelledby="trending-heading">
-      <h2 id="trending-heading">Trending Now</h2>
+    <aside className="trending-now" aria-labelledby="latest-coverage-heading">
+      <h2 id="latest-coverage-heading">Latest Coverage</h2>
       <ol>
         {articles.slice(0, 5).map((article) => (
           <li key={article.id}>
@@ -930,7 +923,9 @@ function TrendingNow({ articles }: { articles: Article[] }) {
   );
 }
 
-function MarketsWidget() {
+function MarketsWidget({ markets }: { markets: MarketItem[] }) {
+  if (markets.length === 0) return null;
+
   return (
     <section className="markets-widget" aria-labelledby="markets-heading">
       <div className="sidebar-widget-heading">
@@ -938,120 +933,28 @@ function MarketsWidget() {
         <h2 id="markets-heading">Markets</h2>
       </div>
       <div className="markets-table">
-        {sidebarMarkets.map((market) => (
+        {markets.map((market) => (
           <div key={market.label} className="markets-row">
             <strong>{market.label}</strong>
             <span>{market.value}</span>
-            <em className={market.direction === "up" ? "sidebar-market-up" : "sidebar-market-down"}>
-              {market.change} {market.direction === "up" ? "▲" : "▼"}
+            <em className={market.change >= 0 ? "sidebar-market-up" : "sidebar-market-down"}>
+              {market.change >= 0 ? "+" : ""}{market.change.toFixed(2)}%
             </em>
           </div>
         ))}
       </div>
-      <p>Data delayed 15 min</p>
+      <p>Third-party market data may be delayed.</p>
     </section>
   );
 }
 
-function NewsletterWidget() {
-  return (
-    <section className="sidebar-newsletter" aria-labelledby="sidebar-newsletter-heading">
-      <h2 id="sidebar-newsletter-heading">Stay Informed</h2>
-      <p>Get the latest news delivered to your inbox</p>
-      <form>
-        <input
-          type="email"
-          placeholder="Email address"
-          aria-label="Email address"
-          suppressHydrationWarning
-        />
-        <button type="button" suppressHydrationWarning>
-          Subscribe
-        </button>
-      </form>
-    </section>
-  );
-}
-
-function FollowUsWidget() {
-  const links = [
-    { platform: "Twitter", count: "124K followers", initial: "T" },
-    { platform: "Facebook", count: "89K followers", initial: "f" },
-    { platform: "Instagram", count: "56K followers", initial: "I" },
-    { platform: "YouTube", count: "41K subscribers", initial: "Y" },
-  ];
-
-  return (
-    <section className="follow-widget" aria-labelledby="follow-heading">
-      <h2 id="follow-heading">Follow Us</h2>
-      <div>
-        {links.map((link) => (
-          <a key={link.platform} href="https://example.com" target="_blank" rel="noopener noreferrer">
-            <span aria-hidden="true">{link.initial}</span>
-            <strong>{link.platform}</strong>
-            <em>{link.count}</em>
-          </a>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function Sidebar({ articles, weather }: { articles: Article[]; weather: WeatherData }) {
+function Sidebar({ articles, weather, markets }: { articles: Article[]; weather: WeatherData | null; markets: MarketItem[] }) {
   return (
     <div className="homepage-sidebar">
       <TrendingNow articles={articles} />
       <WeatherWidget weather={weather} />
-      <MarketsWidget />
-      <NewsletterWidget />
-      <FollowUsWidget />
+      <MarketsWidget markets={markets} />
     </div>
-  );
-}
-
-function SiteFooter() {
-  return (
-    <footer className="site-footer">
-      <div className="footer-grid">
-        <div>
-          <h2>World News Simply</h2>
-          <p>Clear, fast briefings from around the world, written for everyday reading.</p>
-        </div>
-        <div>
-          <h3>Categories</h3>
-          {sectionCategories.map((category) => (
-            <ScrollLink key={category} href={`/?category=${category}`}>
-              {category}
-            </ScrollLink>
-          ))}
-        </div>
-        <div>
-          <h3>Follow Us</h3>
-          <div className="social-links">
-            <a href="https://twitter.com" aria-label="Twitter">T</a>
-            <a href="https://facebook.com" aria-label="Facebook">F</a>
-            <a href="https://instagram.com" aria-label="Instagram">I</a>
-            <a href="/rss" aria-label="RSS">RSS</a>
-          </div>
-        </div>
-        <form className="newsletter-form">
-          <h3>Newsletter</h3>
-          <label htmlFor="newsletter-email">Email address</label>
-          <div>
-            <input
-              id="newsletter-email"
-              type="email"
-              placeholder="you@example.com"
-              suppressHydrationWarning
-            />
-            <button type="button" suppressHydrationWarning>
-              Sign up
-            </button>
-          </div>
-        </form>
-      </div>
-      <p className="copyright">Copyright 2026 World News Simply. All rights reserved.</p>
-    </footer>
   );
 }
 
@@ -1101,8 +1004,8 @@ async function NewsContent({
       <div className="page-wrap">
         <RegionTabs activeCategory={activeCategory} activeRegion={activeRegion} />
         <HeroSection articles={pageArticles.slice(0, 5)} />
-        <EditorsPickSection articles={pageArticles} />
-        <BreakingNewsSection articles={pageArticles.slice(1, 5)} />
+        <EditorsPickSection articles={pageArticles.filter((article) => article.is_editors_pick)} />
+        <BreakingNewsSection articles={pageArticles.filter((article) => article.is_breaking)} />
         <Pagination
           activeCategory={activeCategory}
           activeRegion={activeRegion}
@@ -1129,11 +1032,11 @@ async function NewsContent({
             />
           ))}
         </div>
-        <Sidebar articles={allArticles} weather={weather} />
+        <Sidebar articles={allArticles} weather={weather} markets={markets} />
       </div>
 
       <LongReadsSection articles={allArticles} />
-      <SiteFooter />
+      <Footer />
     </main>
   );
 }
