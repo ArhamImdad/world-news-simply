@@ -29,7 +29,8 @@ describe("explicit application environment isolation", () => {
     ["production", PRODUCTION_SUPABASE_PROJECT_REF],
   ] as const)("accepts %s mode only with its expected project", (mode, projectRef) => {
     expect(validateAppEnvironment({ APP_ENV: mode, NEXT_PUBLIC_SUPABASE_URL: projectUrl(projectRef),
-      ...(mode === "production" ? { NEXT_PUBLIC_SITE_URL: "https://news.example.com" } : {}) }))
+      ...(mode === "production" ? { NEXT_PUBLIC_SITE_URL: "https://news.example.com",
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: "public-fixture-key" } : {}) }))
       .toMatchObject({ mode, expectedProjectRef: projectRef });
   });
 

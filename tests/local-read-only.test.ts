@@ -118,7 +118,8 @@ describe("non-local isolation remains intact", () => {
     expect(() => validateAppEnvironment({ APP_ENV: "production",
       NEXT_PUBLIC_SUPABASE_URL: "https://xfmbyxjevjliiwndcrpr.supabase.co" })).toThrow(/required/);
     expect(() => assertWritesAllowed("publication", { APP_ENV: "production",
-      NEXT_PUBLIC_SUPABASE_URL: productionUrl, NEXT_PUBLIC_SITE_URL: "https://news.example.com" })).not.toThrow();
+      NEXT_PUBLIC_SUPABASE_URL: productionUrl, NEXT_PUBLIC_SITE_URL: "https://news.example.com",
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "public-fixture-key" })).not.toThrow();
   });
 
   it("keeps test isolated and retained staging diagnostics bound to staging", () => {

@@ -76,7 +76,24 @@ Enabled pools use documented official text from BLS, GOV.UK, SEC, U.S. Census, O
 
 ## Cloudflare Workers / OpenNext
 
-Production uses the Worker `world-news-simply`. `WORKER_SELF_REFERENCE` must remain bound to that exact service name. `custom-worker.ts` wraps the generated OpenNext handler with scheduled events. Production commands require `.env.production.local` (or equivalent protected deployment values), `APP_ENV=production`, the production Supabase project, and a real custom HTTPS `NEXT_PUBLIC_SITE_URL`; localhost, `workers.dev`, and `supabase.co` origins are rejected.
+Production uses the Worker `world-news-simply`. `WORKER_SELF_REFERENCE` must remain bound to that exact service name. `custom-worker.ts` wraps the generated OpenNext handler with scheduled events. Production commands optionally load the ignored `.env.production.local` when it exists. Without that file, they use the existing process environment, including Cloudflare dashboard build variables. The runner always sets and validates `APP_ENV=production`, preserves nested environment locks, and rejects missing public configuration, the wrong Supabase project, and invalid canonical origins (including localhost, `workers.dev`, `vercel.app`, and `supabase.co`).
+
+Configure these variables in the Cloudflare **build environment**, not only the deployed Worker's runtime settings:
+
+| Variable | Build value |
+| --- | --- |
+| `APP_ENV` | `production` (also enforced by the production scripts) |
+| `NEXT_PUBLIC_SITE_URL` | The publication's real custom HTTPS origin, without a path |
+| `NEXT_PUBLIC_SUPABASE_URL` | The production project's public URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | The production publishable/anon key |
+| `NEXT_PUBLIC_ADSENSE_ENABLED` | `false` while advertising is disabled |
+| `NEXT_PUBLIC_ADSENSE_CONSENT_READY` | `false` while advertising is disabled |
+
+AdSense client and article-slot IDs may remain absent while advertising is disabled. Public build configuration is embedded by Next.js; it must match the intended production environment. Keep the application environment and public configuration available at runtime as well.
+
+`SUPABASE_SERVICE_ROLE_KEY` (server article metadata and queue access), `GROQ_API_KEY` (generation), and `CRON_SECRET` (scheduled endpoint authorization) are runtime secrets, not build requirements. `UNSPLASH_ACCESS_KEY` is an optional runtime image-provider secret. Configure these as Worker secrets; do not prefix them with `NEXT_PUBLIC_` or place them in committed files. If provided through the CI process environment, the runner preserves them without logging their values. Cloudflare deployment authentication is separate from these application secrets.
+
+Existing env files retain their isolated loading behavior; `npm run dev` still loads `.env.local`, staging commands still load their specified file, and the test runner's `-` sentinel still clears inherited database configuration. When a requested file is absent, inherited values are validated and unrelated local dotenv files cannot fill in missing values. No environment files need to be committed for `cf:build`, `deploy`, or `cf:dry-run`.
 
 - Build only: `npm run cf:build`
 - Preview: `npm run preview`

@@ -4,11 +4,8 @@ import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { assertAppEnvironment, DATABASE_ENVIRONMENT_VARIABLES } from "../lib/environment-isolation.ts";
 
-function parseEnvironmentFile(path, required) {
-  if (!existsSync(path)) {
-    if (required) throw new Error(`Required environment file is missing: ${path}`);
-    return {};
-  }
+function parseEnvironmentFile(path) {
+  if (!existsSync(path)) return {};
   const values = {};
   for (const rawLine of readFileSync(path, "utf8").split(/\r?\n/)) {
     const line = rawLine.trim();
@@ -28,7 +25,7 @@ function parseEnvironmentFile(path, required) {
 function fallbackEnvironmentKeys(cwd) {
   const keys = new Set(DATABASE_ENVIRONMENT_VARIABLES);
   for (const name of [".env", ".env.local", ".env.production", ".env.production.local", ".env.test", ".env.test.local"]) {
-    for (const key of Object.keys(parseEnvironmentFile(resolve(cwd, name), false))) keys.add(key);
+    for (const key of Object.keys(parseEnvironmentFile(resolve(cwd, name)))) keys.add(key);
   }
   return keys;
 }
@@ -39,10 +36,17 @@ export function isolatedChildEnvironment(options) {
   if (inheritedLock && inheritedLock !== options.mode) {
     throw new Error(`APP_ENV is locked to ${inheritedLock}; refusing nested ${options.mode} command.`);
   }
-  const fileValues = options.environmentFile === "-" ? {} :
-    parseEnvironmentFile(resolve(cwd, options.environmentFile), true);
+  const filePath = options.environmentFile === "-" ? null : resolve(cwd, options.environmentFile);
+  const hasEnvironmentFile = filePath !== null && existsSync(filePath);
+  const fileValues = hasEnvironmentFile ? parseEnvironmentFile(filePath) : {};
   const environment = { ...process.env };
-  for (const key of fallbackEnvironmentKeys(cwd)) environment[key] = "";
+  for (const key of fallbackEnvironmentKeys(cwd)) {
+    // Explicit files and the test runner's "-" retain their isolated behavior.
+    // Without a file, preserve CI values but block Next's unrelated dotenv fallbacks.
+    if (hasEnvironmentFile || options.environmentFile === "-" || environment[key] === undefined) {
+      environment[key] = "";
+    }
+  }
   Object.assign(environment, fileValues, { APP_ENV: options.mode, APP_ENV_LOCK: options.mode });
   assertAppEnvironment(environment);
   return environment;

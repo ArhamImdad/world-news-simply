@@ -92,7 +92,12 @@ export function validateAppEnvironment(source: EnvironmentSource = process.env) 
   const mismatch = configured.find((entry) => entry.projectRef !== expectedProjectRef);
   if (mismatch) throw new Error(`${mismatch.name} does not target the Supabase project required by APP_ENV=${mode}.`);
   if (configured.length === 0) throw new Error(`No Supabase project URL is configured for APP_ENV=${mode}.`);
-  if (mode === "production") assertProductionSiteUrl(source);
+  if (mode === "production") {
+    assertProductionSiteUrl(source);
+    if (!source.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()) {
+      throw new Error("production mode requires NEXT_PUBLIC_SUPABASE_ANON_KEY.");
+    }
+  }
   if (mode === "local") {
     const privilegedSecret = LOCAL_FORBIDDEN_SECRETS.find((name) => source[name]?.trim());
     if (privilegedSecret) {

@@ -17,6 +17,7 @@ const RUN_B = "22222222-2222-4222-8222-222222222222";
 beforeEach(() => {
   vi.stubEnv("APP_ENV", "staging");
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://xfmbyxjevjliiwndcrpr.supabase.co");
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "public-fixture-key");
 });
 afterEach(() => vi.unstubAllEnvs());
 
