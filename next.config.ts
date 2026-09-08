@@ -1,4 +1,7 @@
 import type { NextConfig } from "next";
+import { assertAppEnvironment } from "./lib/environment-isolation";
+
+assertAppEnvironment();
 
 const nextConfig: NextConfig = {
   async headers() {

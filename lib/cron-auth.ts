@@ -1,10 +1,12 @@
 import { getServerSecret } from "@/lib/env";
+import { assertCronExecutionAllowed } from "@/lib/environment-isolation";
 
 async function digest(value: string) {
   return crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
 }
 
 export async function isAuthorizedCronRequest(request: Request) {
+  assertCronExecutionAllowed();
   const authorization = request.headers.get("authorization");
   if (!authorization?.startsWith("Bearer ")) return false;
 

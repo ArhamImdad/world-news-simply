@@ -46,6 +46,8 @@ const categories = [
   "Politics",
   "Technology",
   "Business",
+  "Economy",
+  "Science",
   "Sports",
   "Health",
   "Opinion",
@@ -59,6 +61,8 @@ const categoryAccentColors: Record<string, string> = {
   Politics: "#6d28d9",
   Technology: "#1d4ed8",
   Business: "#047857",
+  Economy: "#0f766e",
+  Science: "#0369a1",
   Sports: "#c2410c",
   Health: "#0e7490",
   Opinion: "#a16207",
@@ -192,6 +196,7 @@ async function getArticles(filters: { category?: string; region?: string } = {})
   let query = supabase
     .from("articles")
     .select(ARTICLE_SELECT)
+    .eq("publication_status", "approved")
     .order("created_at", { ascending: false });
 
   if (filters.category) {
@@ -280,16 +285,19 @@ async function getWeather(): Promise<WeatherData | null> {
     );
     if (!response.ok) throw new Error(`Weather request failed with status ${response.status}`);
     const data = await response.json();
-    if (!Number.isFinite(Number(data.current?.temperature_2m))) {
+    const temperature = Number(data.current?.temperature_2m);
+    const humidity = Number(data.current?.relative_humidity_2m);
+    const windSpeed = Number(data.current?.wind_speed_10m);
+    if (![temperature, humidity, windSpeed].every(Number.isFinite)) {
       throw new Error("Weather response did not contain current conditions.");
     }
     const condition = getWeatherCondition(Number(data.current?.weather_code));
 
     return {
-      temperature: Math.round(Number(data.current?.temperature_2m ?? 29)),
+      temperature: Math.round(temperature),
       condition: condition.condition,
-      humidity: Math.round(Number(data.current?.relative_humidity_2m ?? 55)),
-      windSpeed: Math.round(Number(data.current?.wind_speed_10m ?? 8)),
+      humidity: Math.round(humidity),
+      windSpeed: Math.round(windSpeed),
       icon: condition.icon,
     };
   } catch (error) {

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { readAdsenseRuntimeConfig } from "@/lib/adsense";
 import { getPublicSiteUrl } from "@/lib/env";
 import ScrollToTop from "./scroll-to-top";
 import { ThemeProvider } from "./theme-provider";
@@ -10,6 +11,8 @@ const googleAnalyticsId = /^G-[A-Z0-9]+$/.test(process.env.NEXT_PUBLIC_GOOGLE_AN
   ? process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID
   : undefined;
 const googleVerification = process.env.GOOGLE_SITE_VERIFICATION;
+const adsenseConfig = readAdsenseRuntimeConfig();
+const isLocal = process.env.APP_ENV === "local";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -36,14 +39,17 @@ export const metadata: Metadata = {
     images: ["/og-default.svg"],
   },
   robots: {
-    index: true,
-    follow: true,
+    index: !isLocal,
+    follow: !isLocal,
   },
   icons: {
     icon: "/favicon.ico",
     apple: "/apple-touch-icon.png",
   },
   verification: googleVerification ? { google: googleVerification } : undefined,
+  other: adsenseConfig.clientId
+    ? { "google-adsense-account": adsenseConfig.clientId }
+    : undefined,
 };
 
 export default function RootLayout({

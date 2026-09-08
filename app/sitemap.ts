@@ -19,6 +19,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const { data: articles, error } = await supabase
     .from("articles")
     .select("id,slug,created_at")
+    .eq("publication_status", "approved")
     .order("created_at", { ascending: false });
 
   if (error) console.error("Sitemap article query failed:", error.message);

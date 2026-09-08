@@ -77,6 +77,7 @@ export default function CategoryLoadMoreSection({
       const { data, error } = await supabase
         .from("articles")
         .select(ARTICLE_SELECT)
+        .eq("publication_status", "approved")
         .eq("category", category)
         .order("created_at", { ascending: false })
         .range(offset, offset + PAGE_SIZE - 1);

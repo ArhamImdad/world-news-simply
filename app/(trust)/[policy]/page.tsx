@@ -15,6 +15,8 @@ const policies = {
         <p>Technology, including AI-assisted tools, may help summarize source material and improve readability. That assistance can make mistakes. We aim to publish only claims supported by the available source material and to correct errors transparently.</p>
         <h2>Our scope</h2>
         <p>This is a small independent publication, not a large newsroom. We do not claim firsthand reporting unless an article explicitly says so.</p>
+        <h2>Publisher and bylines</h2>
+        <p>World News Simply is the publisher. The “World News Simply Editorial Desk” byline identifies the publication&apos;s editorial process; it is an organizational byline, not a fictional individual reporter.</p>
       </>
     ),
   },
@@ -41,6 +43,8 @@ const policies = {
         <p>AI-assisted tools may help produce drafts. Instructions prohibit invented people, quotes, statistics, dates, locations, and claims. Automation is not a guarantee of accuracy, so readers should consult linked primary reporting for important decisions.</p>
         <h2>Independence and updates</h2>
         <p>Advertising or commercial relationships, if introduced, will not determine factual conclusions. Material corrections are handled under our Corrections Policy.</p>
+        <h2>Human monetization review</h2>
+        <p>Publication approval and advertising eligibility are separate decisions. Automatically prepared articles remain ineligible for Google advertising unless a human reviewer explicitly approves that article for monetization after considering its substance, originality, sourcing, and presentation.</p>
       </>
     ),
   },
@@ -66,9 +70,11 @@ const policies = {
         <h2>Service providers</h2>
         <p>Cloudflare hosts the site, Supabase stores publication data, and external news, image, weather, and media services provide content or data. Their handling of information is governed by their own policies.</p>
         <h2>Advertising</h2>
-        <p>The site may use advertising services such as Google AdSense in the future. If enabled, advertising partners may use cookies or similar identifiers for measurement and ad delivery. This page will be updated when advertising is activated and consent controls will be added where legally required.</p>
+        <p>The site does not currently enable Google AdSense. If Google advertising is enabled later, Google and its advertising partners may use cookies, device information, or similar identifiers for ad delivery, fraud prevention, frequency control, and measurement. Depending on consent and location, ads may be personalized, non-personalized, or limited. This policy will be updated before activation to describe the production configuration accurately.</p>
+        <h2>Advertising consent</h2>
+        <p>Before Google ads are enabled for visitors in the EEA, the United Kingdom, or Switzerland, the publication will configure an appropriate Google-certified consent management platform and required consent choices. The current application keeps advertising disabled until that integration is expressly confirmed ready.</p>
         <h2>Your choices</h2>
-        <p>You can limit cookies through your browser. For privacy questions, use the <Link href="/contact">contact page</Link>.</p>
+        <p>You can limit cookies through your browser and, when advertising is introduced, use the consent controls made available for your region. Google explains how it uses information from sites that use its services on its <a href="https://policies.google.com/technologies/partner-sites" target="_blank" rel="noopener noreferrer">partner sites information page</a>. For privacy questions, use the <Link href="/contact">contact page</Link>.</p>
       </>
     ),
   },

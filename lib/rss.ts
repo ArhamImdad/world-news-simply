@@ -1,47 +1,91 @@
 import Parser from "rss-parser";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
+import { SOURCE_REGISTRY, type SourceRegistryEntry } from "@/lib/source-registry";
+import { withRetry } from "@/lib/retry";
 
-export type FeedConfig = {
-  url: string;
-  categoryHint: string;
-  regionHint?: string;
-  articleTypeHint?: "news" | "opinion" | "long-read" | "video";
-  isBreakingHint?: boolean;
-};
-
-export const RSS_FEEDS: FeedConfig[] = [
-  { url: "https://feeds.bbci.co.uk/news/world/rss.xml", categoryHint: "World", regionHint: "Global" },
-  { url: "http://www.aljazeera.com/xml/rss/all.xml", categoryHint: "World", regionHint: "Middle East" },
-  { url: "https://www.theverge.com/rss/index.xml", categoryHint: "Technology", regionHint: "Global" },
-  { url: "https://techcrunch.com/feed/", categoryHint: "Technology", regionHint: "Global" },
-  { url: "https://www.cnbc.com/id/10001147/device/rss/rss.html", categoryHint: "Business", regionHint: "Americas" },
-  { url: "https://www.espn.com/espn/rss/news", categoryHint: "Sports", regionHint: "Americas" },
-  { url: "https://feeds.bbci.co.uk/news/politics/rss.xml", categoryHint: "Politics", regionHint: "Europe" },
-  { url: "https://rss.politico.com/politics-news.xml", categoryHint: "Politics", regionHint: "Americas" },
-  { url: "https://feeds.bbci.co.uk/news/health/rss.xml", categoryHint: "Health", regionHint: "Global" },
-  { url: "https://www.who.int/rss-feeds/news-english.xml", categoryHint: "Health", regionHint: "Global" },
-  { url: "https://feeds.bbci.co.uk/news/magazine/rss.xml", categoryHint: "Opinion", regionHint: "Global", articleTypeHint: "opinion" },
-  { url: "https://www.theguardian.com/uk/commentisfree/rss", categoryHint: "Opinion", regionHint: "Europe", articleTypeHint: "opinion" },
-  { url: "https://feeds.bbci.co.uk/news/world/asia/rss.xml", categoryHint: "World", regionHint: "Asia" },
-  { url: "https://feeds.bbci.co.uk/news/world/europe/rss.xml", categoryHint: "World", regionHint: "Europe" },
-  { url: "https://feeds.bbci.co.uk/news/world/middle_east/rss.xml", categoryHint: "World", regionHint: "Middle East" },
-  { url: "https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml", categoryHint: "World", regionHint: "Americas" },
-  { url: "https://feeds.bbci.co.uk/news/world/africa/rss.xml", categoryHint: "World", regionHint: "Africa" },
-  { url: "https://www.wired.com/feed/rss", categoryHint: "Technology", regionHint: "Americas", articleTypeHint: "long-read" },
-  { url: "https://feeds.feedburner.com/TheAtlantic", categoryHint: "World", regionHint: "Americas", articleTypeHint: "long-read" },
-];
+export type FeedConfig = SourceRegistryEntry;
+export const RSS_FEEDS = SOURCE_REGISTRY;
 
 const parser = new Parser();
 
-export async function parseFeed(feedUrl: string) {
-  const response = await fetchWithTimeout(feedUrl, {
-    headers: { "User-Agent": "World News Simply/1.0" },
-    cache: "no-store",
-  });
+export type NormalizedFeedItem = {
+  title?: string; link?: string; pubDate?: string; isoDate?: string;
+  contentSnippet?: string; content?: string; summary?: string;
+};
 
-  if (!response.ok) {
-    throw new Error(`RSS request failed with status ${response.status}`);
-  }
+function decodeHtml(value: string) {
+  return value.replace(/&#(\d+);/g, (entity, code: string) => {
+    const point = Number(code);
+    return Number.isInteger(point) && point >= 0 && point <= 0x10ffff ? String.fromCodePoint(point) : entity;
+  }).replace(/&#x([0-9a-f]+);/gi, (entity, code: string) => {
+    const point = Number.parseInt(code, 16);
+    return Number.isInteger(point) && point >= 0 && point <= 0x10ffff ? String.fromCodePoint(point) : entity;
+  }).replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">");
+}
 
-  return parser.parseString(await response.text());
+function cleanHtmlText(value: string) {
+  return decodeHtml(value).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+export function parseAbsReleaseIndex(html: string, indexUrl: string) {
+  const rows = [...html.matchAll(/<div class="views-row">([\s\S]*?)(?=<div class="views-row">|<\/div><\/div><\/div>|$)/gi)];
+  return { items: rows.flatMap((row) => {
+    const body = row[1];
+    const timestamp = body.match(/<time\b[^>]*datetime="([^"]+)"/i)?.[1];
+    const anchor = body.match(/<h3>\s*<a\b[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>\s*<\/h3>/i);
+    if (!timestamp || !anchor) return [];
+    const title = cleanHtmlText(anchor[2]);
+    const subtitle = cleanHtmlText(body.match(/<div class="release__subtitle">([\s\S]*?)<\/div>/i)?.[1] ?? "");
+    try {
+      const link = new URL(anchor[1], indexUrl).toString();
+      return title ? [{ title, link, pubDate: timestamp, isoDate: timestamp,
+        contentSnippet: subtitle || title, content: subtitle || title, summary: subtitle || title }] : [];
+    } catch { return []; }
+  }).slice(0, 20) };
+}
+
+export function parseFeedXml(xml: string) {
+  return parser.parseString(xml);
+}
+
+function structuredText(value: unknown): string {
+  if (typeof value === "string") return cleanHtmlText(value);
+  if (Array.isArray(value)) return value.map(structuredText).filter(Boolean).join(" ");
+  if (!value || typeof value !== "object") return "";
+  const record = value as Record<string, unknown>;
+  return [record._, ...Object.entries(record).filter(([key]) => key !== "$" && key !== "_")
+    .map(([, child]) => child)].map(structuredText).filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+}
+
+export function normalizeStructuredFeedItems(feed: { items: Array<Record<string, unknown>> }): { items: NormalizedFeedItem[] } {
+  return { items: feed.items.map((item) => ({ ...item,
+    title: structuredText(item.title),
+    contentSnippet: structuredText(item.contentSnippet || item.content || item.summary),
+  })) as NormalizedFeedItem[] };
+}
+
+async function fetchDiscovery(source: SourceRegistryEntry, url: string) {
+  const response = await withRetry(() => fetchWithTimeout(url, {
+    headers: { "User-Agent": "World News Simply/1.0" }, cache: "no-store",
+  }), { operation: `source_feed:${source.id}` });
+  if (!response.ok) throw new Error(`RSS request failed with status ${response.status}`);
+  const body = await response.text();
+  if (source.discoveryFormat === "abs-release-index") return parseAbsReleaseIndex(body, url);
+  return normalizeStructuredFeedItems(await parseFeedXml(body) as { items: Array<Record<string, unknown>> });
+}
+
+export async function parseFeed(source: SourceRegistryEntry): Promise<{ items: NormalizedFeedItem[] }> {
+  if (!source.discoveryAllowed) throw new Error(`Source ${source.id} is not approved for automated discovery.`);
+  const attempts = await Promise.allSettled([source.feedApiUrl, ...(source.additionalDiscoveryUrls ?? [])]
+    .map((url) => fetchDiscovery(source, url)));
+  const feeds = attempts.flatMap((attempt) => attempt.status === "fulfilled" ? [attempt.value] : []);
+  if (feeds.length === 0) throw new Error(`All discovery endpoints failed for source ${source.id}.`);
+  const seen = new Set<string>();
+  return { items: feeds.flatMap((feed) => feed.items).filter((item) => {
+    const key = `${String(item.link ?? "")}|${String(item.pubDate ?? item.isoDate ?? "")}`;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }) };
 }

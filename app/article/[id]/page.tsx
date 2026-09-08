@@ -8,15 +8,18 @@ import ScrollLink from "@/app/scroll-link";
 import SearchPanel from "@/app/search-panel";
 import ThemeToggle from "@/app/theme-toggle";
 import Footer from "@/components/Footer";
+import AdsenseArticleUnit from "@/components/AdsenseArticleUnit";
 import { getArticlePath } from "@/lib/article-url";
 import { getPublicSiteUrl } from "@/lib/env";
-import { supabase, type Article } from "@/lib/supabase";
+import { createServerSupabaseClient, supabase, type Article } from "@/lib/supabase";
+import { isLocalEnvironment } from "@/lib/environment-isolation";
 import { ARTICLE_SELECT } from "@/types/article";
 
 export const dynamic = "force-dynamic";
-const navCategories = ["All", "World", "Politics", "Technology", "Business", "Sports", "Health", "Opinion"];
+const navCategories = ["All", "World", "Politics", "Technology", "Business", "Economy", "Science", "Sports", "Health", "Opinion"];
 const navRegions = ["All", "Asia", "Europe", "Middle East", "Americas", "Africa"];
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const ADSENSE_ARTICLE_SELECT = `${ARTICLE_SELECT},approved_at,editorial_state,quality_score,expires_at,validation_results,generation_metadata,adsense_review_status,adsense_reviewed_at,adsense_reviewed_by`;
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en", {
@@ -94,6 +97,29 @@ function getSource(article: Article) {
   }
 }
 
+function safeExternalUrl(value: string | null | undefined) {
+  try {
+    const url = new URL(value ?? "");
+    return ["http:", "https:"].includes(url.protocol) ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function getArticleSources(article: Article) {
+  if (!Array.isArray(article.sources)) return [];
+  return article.sources.filter((source) =>
+    source && typeof source.title === "string" && typeof source.publisher === "string" &&
+    typeof source.sourceType === "string" && typeof source.licenseType === "string" &&
+    Boolean(safeExternalUrl(source.url))
+  );
+}
+
+function formatOptionalSourceDate(value: string | null) {
+  if (!value || Number.isNaN(new Date(value).getTime())) return "";
+  return ` · ${formatDate(value)}`;
+}
+
 function getAbsoluteImageUrl(imageUrl: string, siteUrl: string) {
   try {
     return new URL(imageUrl, siteUrl).toString();
@@ -107,9 +133,13 @@ function serializeJsonLd(value: object) {
 }
 
 async function getArticle(id: string) {
-  const query = supabase
+  const local = isLocalEnvironment();
+  const database = local ? supabase : createServerSupabaseClient();
+  const selectColumns: string = local ? ARTICLE_SELECT : ADSENSE_ARTICLE_SELECT;
+  const query = database
     .from("articles")
-    .select(ARTICLE_SELECT);
+    .select(selectColumns)
+    .eq("publication_status", "approved");
   const { data, error } = uuidPattern.test(id)
     ? await query.eq("id", id).single()
     : await query.eq("slug", id).single();
@@ -119,13 +149,14 @@ async function getArticle(id: string) {
     return null;
   }
 
-  return data as Article;
+  return data as unknown as Article;
 }
 
 async function getRelatedArticles(article: Article) {
   const { data, error } = await supabase
     .from("articles")
     .select(ARTICLE_SELECT)
+    .eq("publication_status", "approved")
     .eq("category", article.category)
     .neq("id", article.id)
     .order("created_at", { ascending: false })
@@ -171,7 +202,8 @@ export async function generateMetadata({
       url,
       siteName: "World News Simply",
       type: "article",
-      publishedTime: article.created_at,
+      publishedTime: article.approved_at ?? article.created_at,
+      modifiedTime: article.approved_at ?? article.created_at,
       images: [{ url: article.image_url, alt: article.title }],
     },
     twitter: {
@@ -233,6 +265,8 @@ function ArticleNavbar() {
             <ScrollLink href="/?category=Politics">Politics</ScrollLink>
             <ScrollLink href="/?category=Technology">Technology</ScrollLink>
             <ScrollLink href="/?category=Business">Business</ScrollLink>
+            <ScrollLink href="/?category=Economy">Economy</ScrollLink>
+            <ScrollLink href="/?category=Science">Science</ScrollLink>
             <ScrollLink href="/?category=Sports">Sports</ScrollLink>
             <ScrollLink href="/?category=Health">Health</ScrollLink>
             <ScrollLink href="/?category=Opinion">Opinion</ScrollLink>
@@ -362,13 +396,16 @@ export default async function ArticlePage({
   const siteUrl = getPublicSiteUrl();
   const articleUrl = `${siteUrl}${getArticlePath(article)}`;
   const source = getSource(article);
+  const sources = getArticleSources(article);
+  const publicationDate = article.approved_at ?? article.created_at;
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "NewsArticle",
     headline: article.title,
     description: article.summary,
     image: [getAbsoluteImageUrl(article.image_url, siteUrl)],
-    datePublished: article.created_at,
+    datePublished: publicationDate,
+    dateModified: publicationDate,
     author: {
       "@type": "Organization",
       name: "World News Simply Editorial Desk",
@@ -444,7 +481,7 @@ export default async function ArticlePage({
           ) : null}
           <div className="article-byline">
             <span>By World News Simply Editorial Desk</span>
-            <time dateTime={article.created_at}>{formatDate(article.created_at)}</time>
+            <time dateTime={publicationDate}>{formatDate(publicationDate)}</time>
             {getViewCount(article) ? <span>{getViewCount(article)} views</span> : null}
             <span>Published {formatTimeAgo(article.created_at)}</span>
           </div>
@@ -460,6 +497,14 @@ export default async function ArticlePage({
             sizes="(max-width: 768px) 100vw, 1120px"
           />
         </div>
+        {article.image_photographer_name && safeExternalUrl(article.image_photographer_profile_url) &&
+        safeExternalUrl(article.image_attribution_url) ? (
+          <p className="image-attribution">
+            Photo by <a href={article.image_photographer_profile_url!} target="_blank" rel="noopener noreferrer">
+              {article.image_photographer_name}
+            </a> on <a href={article.image_attribution_url!} target="_blank" rel="noopener noreferrer">Unsplash</a>
+          </p>
+        ) : null}
 
         <div className={article.article_type === "long-read" ? "article-body long-read-body" : "article-body"}>
           {paragraphs.length > 0 ? (
@@ -475,6 +520,26 @@ export default async function ArticlePage({
             <p>{article.content}</p>
           )}
         </div>
+
+        <AdsenseArticleUnit article={article} />
+
+        {sources.length > 0 ? (
+          <section className="article-sources" aria-labelledby="article-sources-heading">
+            <h2 id="article-sources-heading">Sources</h2>
+            <ul>
+              {sources.map((item) => (
+                <li key={`${item.url}-${item.isPrimary}`}>
+                  <a href={item.url} target="_blank" rel="noopener noreferrer">{item.title}</a>
+                  <span>
+                    {item.publisher} · {item.sourceType.replace(/-/g, " ")} · {item.licenseType.replace(/-/g, " ")}
+                    {formatOptionalSourceDate(item.publishedAt)}
+                    {item.isPrimary ? " · Primary source" : " · Supporting source"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
         <div className="article-footer-actions">
           <Link href="/">Back to homepage</Link>

@@ -1,6 +1,6 @@
 export async function fetchWithTimeout(
   input: string | URL | Request,
-  init: RequestInit & { next?: { revalidate?: number } } = {},
+  init: RequestInit & { next?: { revalidate?: number | false } } = {},
   timeoutMs = 10000
 ) {
   const controller = new AbortController();

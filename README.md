@@ -1,6 +1,6 @@
 # World News Simply
 
-World News Simply is an independent Next.js publication that turns attributed public reporting into concise news briefings. It uses Supabase for article data, Groq for server-side drafting assistance, optional Unsplash images, and Cloudflare Workers through OpenNext for production hosting.
+World News Simply is a Next.js publication that transforms permitted official material into concise, attributed news briefings. It uses Supabase for the private preparation queue and public articles, Groq for isolated generation and validation, optional Unsplash images, and Cloudflare Workers through OpenNext.
 
 ## Local setup
 
@@ -12,53 +12,83 @@ copy .env.example .env.local
 npm run dev
 ```
 
-The local site is available at `http://localhost:3000`.
+Normal local development uses `APP_ENV=local`, localhost, and the production
+Supabase URL plus its publishable/anon key. It can read only rows already public
+under production RLS. Service-role, cron, Groq, and Unsplash secrets must be
+empty; startup fails closed if any is present, and application mutation/provider
+boundaries independently refuse local execution. AdSense is forced off.
 
-Required environment variable names:
+Local environment variables:
 
-- `GROQ_API_KEY` — server-only Groq key.
-- `NEXT_PUBLIC_SUPABASE_URL` — public Supabase project URL.
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — public, read-only Supabase anon key.
-- `SUPABASE_SERVICE_ROLE_KEY` — server-only Supabase key used by ingestion.
-- `UNSPLASH_ACCESS_KEY` — optional server-only image API key.
-- `NEXT_PUBLIC_SITE_URL` — public origin with no path, such as the current `workers.dev` URL.
-- `CRON_SECRET` — long random server-only bearer secret for ingestion routes.
-- `NEXT_PUBLIC_GOOGLE_ANALYTICS_ID` — optional Analytics measurement ID.
-- `GOOGLE_SITE_VERIFICATION` — optional Search Console verification token.
+- `NEXT_PUBLIC_SUPABASE_URL`: `https://mgfnosozkomhinsaztbs.supabase.co`.
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: production publishable/anon key.
+- `NEXT_PUBLIC_SITE_URL`: `http://localhost:3000`.
+- `NEXT_PUBLIC_CANONICAL_SITE_URL`: optional production HTTPS canonical used by metadata while local robots remain no-index.
 
-Never expose the service-role, Groq, Unsplash, or cron values through a `NEXT_PUBLIC_` variable. `.env.local` and `.dev.vars*` are ignored; `.env.example` contains placeholders only.
+Production-only environment variables:
+
+- `GROQ_API_KEY`: server-only Groq key.
+- `NEXT_PUBLIC_SUPABASE_URL`: public Supabase project URL.
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: public, read-only Supabase anon key.
+- `SUPABASE_SERVICE_ROLE_KEY`: server-only Supabase key used by the queue.
+- `UNSPLASH_ACCESS_KEY`: optional server-only image API key.
+- `NEXT_PUBLIC_SITE_URL`: public origin with no path.
+- `CRON_SECRET`: long random server-only bearer secret for scheduled routes.
+- `READY_QUEUE_TARGET` / `READY_QUEUE_MINIMUM` / `READY_QUEUE_MAXIMUM`: reserve thresholds (defaults 18 / 8 / 30).
+- `MAX_GROQ_CANDIDATES_CRITICAL` / `LOW` / `NORMAL`: per-run expensive-candidate ceilings (defaults 3 / 2 / 1).
+- `GROQ_RUN_TOKEN_BUDGET` / `GROQ_DAILY_TOKEN_BUDGET`: fail-closed approximate token ceilings (defaults 45,000 / 180,000). `GROQ_DAILY_TOKENS_USED` can seed an externally observed daily total.
+- `REPLENISH_NORMAL_CANDIDATES` / `REPLENISH_LOW_CANDIDATES` / `REPLENISH_CRITICAL_CANDIDATES`: bounded per-run candidate limits (defaults 6 / 12 / 18).
+- `NEXT_PUBLIC_GOOGLE_ANALYTICS_ID` and `GOOGLE_SITE_VERIFICATION`: optional public integrations.
+- `NEXT_PUBLIC_ADSENSE_ENABLED`: explicit AdSense runtime switch; defaults to `false`.
+- `NEXT_PUBLIC_ADSENSE_CONSENT_READY`: operator assertion that the production consent/CMP configuration is ready; defaults to `false`.
+- `NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT`: the real AdSense client identifier supplied by Google. Malformed or absent values fail closed.
+- `NEXT_PUBLIC_GOOGLE_ADSENSE_ARTICLE_SLOT`: the real article ad-unit slot supplied by Google. Malformed or absent values fail closed.
+
+Never expose service-role, Groq, Unsplash, or cron values through `NEXT_PUBLIC_`.
+Keep production values in the deployment secret store or the ignored
+`.env.production.local`; `.env.local`, `.env.production.local`, and `.dev.vars*`
+are ignored. Staging remains available only for the existing guarded diagnostic
+commands and is not part of normal local development.
 
 ## Checks and builds
 
 ```bash
 npm run lint
 npm run typecheck
+npm test
 npm run build
+npm run build:production
 npm run cf:build
 npm run cf:dry-run
 ```
 
-`npm run cf:dry-run` expects `.open-next` output, so run `npm run cf:build` first.
+The dry-run expects `.open-next` output, so run the Cloudflare build first.
+
+## Autonomous publication
+
+Preparation and publication are separate failure domains. Queue replenishment discovers permitted material, corroborates it across at least two independent domains, builds a compact traceable evidence model and deterministic article plan, ranks candidates before Groq, generates from evidence rather than webpage structure, runs a deterministic originality precheck, and independently audits only surviving drafts. One targeted revision is permitted. Sanitized token accounting and run/daily governors bound provider spend. The pipeline then obtains a compliant image or local fallback and atomically inserts only a fully ready row. It targets 18 ready articles, warns below 8, and never exceeds 30 through the database enqueue lock.
+
+Publication runs at `0 */2 * * *`. A database function protected by an advisory transaction lock and unique publication-slot key revalidates expiry, current registry IDs, source permissions, structured sources, validation evidence, image attribution, score, and duplicates. It ranks eligible content and publishes at most one row. The offset trigger (`15,45 * * * *`) replenishes independently; the two-hour cycle publishes first and replenishes afterward.
+
+Automatic publication is fail-closed. A row needs quality score at least 90, two permitted independent source domains, a structured primary source, all commercial-reuse/AI-processing/transformation permissions, factual and originality passes, duplicate and source-overlap passes, complete attribution, no unsupported claims, invented quotes/statistics, or hard warnings, modern pipeline metadata, unexpired freshness metadata, and a compliant image. AI scores cannot bypass these predicates.
+
+Enabled pools use documented official text from BLS, GOV.UK, SEC, U.S. Census, ONS, and NASA, plus curated BLS/ONS methodology pairs for evergreen explainers. Publisher feeds with unknown or restrictive reuse terms remain registry-disabled. Publisher images are never ingested.
 
 ## Cloudflare Workers / OpenNext
 
-Production uses the Worker `world-news-simply`. `WORKER_SELF_REFERENCE` must remain bound to that exact service name. The generated OpenNext handler remains in `.open-next/worker.js`; `custom-worker.ts` wraps it to add a scheduled event handler.
+Production uses the Worker `world-news-simply`. `WORKER_SELF_REFERENCE` must remain bound to that exact service name. `custom-worker.ts` wraps the generated OpenNext handler with scheduled events. Production commands require `.env.production.local` (or equivalent protected deployment values), `APP_ENV=production`, the production Supabase project, and a real custom HTTPS `NEXT_PUBLIC_SITE_URL`; localhost, `workers.dev`, and `supabase.co` origins are rejected.
 
 - Build only: `npm run cf:build`
 - Preview: `npm run preview`
 - Deploy: `npm run deploy`
 
-The repository does not deploy automatically from local commands in this setup. If Cloudflare Workers Builds is connected to GitHub, configure the build/deploy command according to the selected Workers Builds workflow; the project deployment command is `npm run deploy`. Keep production variables and secrets in Cloudflare, with `keep_vars` enabled as currently configured.
-
-## Scheduled news updates
-
-`wrangler.jsonc` declares `0 8 * * *` (08:00 UTC daily). Cloudflare invokes `custom-worker.ts`, which internally calls the protected `/api/cron` route. `/api/cron` and `/api/fetch-news` share the same `updateNews()` server function and require `Authorization: Bearer <CRON_SECRET>` for manual calls.
-
-After the next deployment, verify the Cron Trigger in Cloudflare Workers & Pages → `world-news-simply` → Triggers. Do not create a second trigger for the same schedule.
+After deployment, verify both cron triggers in Cloudflare. Do not create duplicate triggers for either schedule.
 
 ## Database
 
-Run `supabase-articles-extra-columns.sql` in the Supabase SQL editor after reviewing it. Public/anon access should be SELECT-only. Ingestion uses `SUPABASE_SERVICE_ROLE_KEY` on the server; never grant public INSERT, UPDATE, or DELETE access.
+Review and apply the ordered files in `supabase/migrations` before deploying. The autonomous queue migration adds private lifecycle/evidence fields and service-role-only RPCs; builds do not execute migrations and the migration does not rewrite legacy rows. Public/anon access remains approved-row SELECT-only. The 892 legacy rows remain hidden with null modern queue metadata and cannot satisfy the ready constraint.
+
+There is no public admin login or CMS. Protected cron endpoints and service-role database functions are the only mutation path. AdSense monetization review is a separate, service-role-only human decision recorded by `review_article_for_adsense`; it never changes publication or factual-quality approval.
 
 ## Search and site URL
 
@@ -66,4 +96,18 @@ Run `supabase-articles-extra-columns.sql` in the Supabase SQL editor after revie
 - Robots rules: `/robots.txt`
 - Article canonicals and structured data use `NEXT_PUBLIC_SITE_URL`.
 
-When a custom domain is ready, attach it to the Worker, set `NEXT_PUBLIC_SITE_URL=https://your-domain.example` in Cloudflare, redeploy, and submit the new sitemap URL to Search Console. No application source URL needs to change.
+When a custom domain is ready, attach it to the Worker, update `NEXT_PUBLIC_SITE_URL`, redeploy, and submit the new sitemap URL.
+
+## AdSense readiness (disabled)
+
+AdSense is disabled by default. Public publication does not make an article monetizable: the article must also have an explicit human `adsense_review_status = approved` decision and pass the stricter server-side content, freshness, source, attribution, and quality gate. Homepage, policy, loading, error, API, and other non-article routes contain no ad component.
+
+Before enabling AdSense:
+
+1. Complete the remaining staging reserve validation, connect the custom HTTPS domain, deploy, and publish a representative body of human-reviewed articles.
+2. Apply the ordered AdSense human-review migration. Use only the service-role RPC from a trusted operator environment to approve or reject an already-published article; do not expose that RPC through a public page.
+3. Create the AdSense account and use the real client and article-slot values supplied by Google. Setting the client value makes `/ads.txt` and the optional account-verification metadata use that same real publisher identity; absent or malformed values return no declaration.
+4. Configure a Google-certified CMP/TCF integration for applicable EEA, UK, and Switzerland traffic. Set `NEXT_PUBLIC_ADSENSE_CONSENT_READY=true` only after that production configuration is verified.
+5. Set `NEXT_PUBLIC_ADSENSE_ENABLED=true` only after Google has approved the site. If any flag, identifier, human review, or content gate is missing, the page remains ad-free without a placeholder or layout hole.
+
+Google Analytics is configured independently. If it is enabled for a jurisdiction where consent is required, include it in the production consent design rather than treating the AdSense flag as analytics consent.

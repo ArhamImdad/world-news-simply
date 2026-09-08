@@ -2788,3 +2788,34 @@ html.dark .theme-toggle-moon {
     transition-duration: 1ms !important;
   }
 }
+.image-attribution {
+  margin: 0.45rem 0 1.25rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-align: right;
+}
+
+/* This container is never rendered without a real, eligible AdSense unit. */
+.article-ad {
+  margin: 2.5rem 0;
+  overflow: hidden;
+  text-align: center;
+}
+
+.image-attribution a,
+.article-sources a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.article-sources {
+  margin: 2rem 0;
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+}
+
+.article-sources h2 { margin-top: 0; }
+.article-sources ul { margin-bottom: 0; padding-left: 1.25rem; }
+.article-sources li + li { margin-top: 0.8rem; }
+.article-sources span { display: block; margin-top: 0.2rem; color: var(--muted); font-size: 0.82rem; }

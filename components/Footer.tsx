@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-const footerCategories = ["World", "Politics", "Technology", "Business", "Sports", "Health", "Opinion"];
+const footerCategories = ["World", "Politics", "Technology", "Business", "Economy", "Science", "Sports", "Health", "Opinion"];
 const trustLinks = [
   ["About", "/about"],
   ["Contact", "/contact"],
