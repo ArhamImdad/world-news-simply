@@ -180,7 +180,6 @@ main {
 .brand-globe svg,
 .icon-button svg,
 .theme-toggle svg,
-.mobile-menu summary svg,
 .mobile-menu-trigger svg,
 .mobile-overlay-header button svg {
   width: 1.2rem;
@@ -232,7 +231,6 @@ main {
 
 .icon-button,
 .theme-toggle,
-.mobile-menu summary,
 .mobile-menu-trigger {
   display: grid;
   width: 2.55rem;
@@ -251,11 +249,9 @@ main {
 
 .icon-button:hover,
 .theme-toggle:hover,
-.mobile-menu summary:hover,
 .mobile-menu-trigger:hover,
 .icon-button:focus-visible,
 .theme-toggle:focus-visible,
-.mobile-menu summary:focus-visible,
 .mobile-menu-trigger:focus-visible {
   background: rgb(255 255 255 / 0.16);
   border-color: rgb(255 255 255 / 0.38);
@@ -277,94 +273,63 @@ html.dark .theme-toggle-moon {
   display: grid !important;
 }
 
-.mobile-menu {
-  position: relative;
-  display: none;
-}
-
 .mobile-menu-trigger {
   display: none;
 }
 
-.mobile-menu summary {
-  list-style: none;
-}
-
-.mobile-menu summary::-webkit-details-marker {
-  display: none;
-}
-
-.mobile-menu-panel {
-  position: absolute;
-  top: calc(100% + 0.75rem);
-  right: 0;
-  display: grid;
-  width: min(18rem, calc(100vw - 2rem));
-  padding: 0.75rem;
-  background: var(--card);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow);
-}
-
-.mobile-link {
-  padding: 0.85rem;
-  color: var(--ink);
-  font-size: 0.9rem;
-  font-weight: 800;
-  border-bottom: 1px solid var(--soft-line);
-}
-
-.mobile-link-active {
-  color: var(--accent);
-}
-
 .mobile-menu-locked {
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .mobile-overlay {
   position: fixed;
   inset: 0;
-  z-index: 80;
-  pointer-events: none;
-  background: rgb(0 0 0 / 0);
-  opacity: 0;
-  transition:
-    opacity 0.3s ease,
-    background-color 0.3s ease;
+  z-index: 1000;
+  display: flex;
+  background: rgb(0 0 0 / 0.68);
+  overscroll-behavior: contain;
 }
 
 .mobile-overlay-open {
-  pointer-events: auto;
-  background: rgb(0 0 0 / 0.5);
-  opacity: 1;
+  animation: mobile-overlay-fade 0.24s ease-out both;
 }
 
 .mobile-overlay-panel {
   display: flex;
-  width: min(88vw, 24rem);
-  height: 100%;
+  width: min(23rem, calc(100vw - 2.75rem));
+  max-width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
   flex-direction: column;
-  gap: 1.2rem;
-  padding: 1rem;
+  overflow: hidden;
   color: var(--ink);
   background: var(--card);
   border-right: 1px solid var(--line);
-  box-shadow: var(--shadow);
-  transform: translateX(-100%);
-  transition: transform 0.3s ease;
+  box-shadow: 24px 0 64px rgb(0 0 0 / 0.42);
+  animation: mobile-drawer-slide 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.mobile-overlay-open .mobile-overlay-panel {
-  transform: translateX(0);
+@keyframes mobile-overlay-fade {
+  from {
+    background-color: rgb(0 0 0 / 0);
+  }
+}
+
+@keyframes mobile-drawer-slide {
+  from {
+    transform: translateX(-100%);
+  }
 }
 
 .mobile-overlay-header {
   display: flex;
+  flex: 0 0 auto;
   gap: 1rem;
   align-items: center;
   justify-content: space-between;
-  padding-bottom: 0.85rem;
+  padding: max(1rem, env(safe-area-inset-top)) 1rem 0.9rem;
   border-bottom: 1px solid var(--line);
 }
 
@@ -375,30 +340,52 @@ html.dark .theme-toggle-moon {
 
 .mobile-overlay-header button {
   display: grid;
-  width: 2.4rem;
-  height: 2.4rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 2.5rem;
   place-items: center;
   color: var(--ink);
   background: var(--paper);
   border: 1px solid var(--line);
 }
 
-.mobile-overlay-actions {
-  display: flex;
-  gap: 0.55rem;
-  align-items: center;
+.mobile-overlay-scroll {
+  min-height: 0;
+  padding: 0.85rem 1rem max(1rem, env(safe-area-inset-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
-.mobile-overlay-actions .theme-toggle,
-.mobile-overlay-actions .icon-button {
-  color: var(--ink);
+.mobile-overlay-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1rem;
+  padding: 0.65rem 0.75rem;
   background: var(--paper);
+  border: 1px solid var(--soft-line);
+}
+
+.mobile-overlay-actions > span {
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 800;
+}
+
+.mobile-overlay-actions .theme-toggle {
+  color: var(--ink);
+  background: var(--card);
   border-color: var(--line);
 }
 
 .mobile-overlay nav {
   display: grid;
   gap: 0.35rem;
+}
+
+.mobile-overlay nav + nav {
+  margin-top: 1rem;
 }
 
 .mobile-overlay nav p {
@@ -428,6 +415,34 @@ html.dark .theme-toggle-moon {
   background: var(--accent);
   border-color: var(--accent);
   outline: none;
+}
+
+.mobile-overlay .mobile-overlay-footer {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.mobile-overlay-footer a {
+  padding: 0.35rem 0.15rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 750;
+  text-align: center;
+}
+
+.mobile-overlay-footer a:hover,
+.mobile-overlay-footer a:focus-visible {
+  color: var(--accent);
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-overlay-open,
+  .mobile-overlay-panel {
+    animation-duration: 0.01ms;
+  }
 }
 
 .search-panel {
@@ -2617,6 +2632,12 @@ html.dark .theme-toggle-moon {
   }
 }
 
+@media (min-width: 1081px) {
+  .mobile-overlay {
+    display: none;
+  }
+}
+
 @media (max-width: 720px) {
   .page-wrap,
   .site-navbar-inner,
@@ -2642,7 +2663,7 @@ html.dark .theme-toggle-moon {
 
   .icon-button,
   .theme-toggle,
-  .mobile-menu summary {
+  .mobile-menu-trigger {
     width: 2.25rem;
     height: 2.25rem;
   }
@@ -2753,6 +2774,21 @@ html.dark .theme-toggle-moon {
 }
 
 @media (max-width: 420px) {
+  .mobile-overlay-header strong {
+    font-size: 1.1rem;
+    white-space: nowrap;
+  }
+
+  .mobile-overlay-header {
+    padding-right: 0.75rem;
+    padding-left: 0.75rem;
+  }
+
+  .mobile-overlay-scroll {
+    padding-right: 0.75rem;
+    padding-left: 0.75rem;
+  }
+
   .nav-actions {
     gap: 0.35rem;
   }
