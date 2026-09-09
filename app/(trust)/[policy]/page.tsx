@@ -43,8 +43,8 @@ const policies = {
         <p>AI-assisted tools may help produce drafts. Instructions prohibit invented people, quotes, statistics, dates, locations, and claims. Automation is not a guarantee of accuracy, so readers should consult linked primary reporting for important decisions.</p>
         <h2>Independence and updates</h2>
         <p>Advertising or commercial relationships, if introduced, will not determine factual conclusions. Material corrections are handled under our Corrections Policy.</p>
-        <h2>Human monetization review</h2>
-        <p>Publication approval and advertising eligibility are separate decisions. Automatically prepared articles remain ineligible for Google advertising unless a human reviewer explicitly approves that article for monetization after considering its substance, originality, sourcing, and presentation.</p>
+        <h2>Automated publication controls</h2>
+        <p>Articles become public only after automated checks confirm factual completeness, context, usefulness, originality, source attribution, and publication quality. Drafts that fail any required score or safety check are rejected or quarantined rather than published.</p>
       </>
     ),
   },

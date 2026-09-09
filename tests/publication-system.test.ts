@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { executeSeparatedCycle } from "@/lib/publication-orchestrator";
 import { candidateReserveOrder, getPublicationConfig, groqCandidateLimit, replenishmentLimit } from "@/lib/publication-config";
 import { deterministicOriginalityPrecheck } from "@/lib/article-quality";
@@ -43,7 +45,12 @@ function article(overrides: Partial<ReadyArticle> = {}): ReadyArticle {
     content_pool: "government-records",
     publication_priority: 95,
     topic_signature: buildTopicSignature(title),
-    validation_results: { factualSupportPassed: true, originalityPassed: true, duplicateDetectionPassed: true, sourceOverlapPassed: true, unsupportedClaims: false, inventedQuotes: false, inventedStatistics: false, completeAttribution: true, hardWarnings: [] },
+    validation_results: { factualCompletenessScore: 94, originalityScore: 94, usefulnessScore: 94,
+      meaningfulContextScore: 94, headlineQualityScore: 94, addedValueScore: 94,
+      automatedEditorialPassed: true, mostlyParaphrase: false, speculativeOrInvented: false,
+      factualSupportPassed: true, originalityPassed: true, duplicateDetectionPassed: true,
+      sourceOverlapPassed: true, unsupportedClaims: false, inventedQuotes: false,
+      inventedStatistics: false, completeAttribution: true, hardWarnings: [] },
     generation_metadata: { pipelineVersion: PIPELINE_VERSION, provider: "test", model: "test-model", modernPipeline: true, preparedAutomatically: true },
     ...overrides,
   };
@@ -55,6 +62,20 @@ describe("automatic eligibility", () => {
     expect(readyArticleFailures(ready, permitted, NOW)).toEqual([]);
     expect(selectBestReadyArticle([ready], permitted, [], NOW)).toBe(ready);
   });
+
+  it("does not require any admin approval metadata", () => {
+    const ready = article();
+    expect("adsense_review_status" in ready).toBe(false);
+    expect(readyArticleFailures(ready, permitted, NOW)).toEqual([]);
+  });
+
+  it.each(["factualCompletenessScore", "originalityScore", "usefulnessScore",
+    "meaningfulContextScore", "headlineQualityScore", "addedValueScore"] as const)(
+    "rejects an article when %s is below the automated threshold", (field) => {
+      const validation_results = { ...article().validation_results, [field]: 89 };
+      expect(readyArticleFailures(article({ validation_results }), permitted, NOW))
+        .toContain("editorial dimension below 90");
+    });
 
   it("does not publish an expired article", () => {
     const expired = article({ expires_at: "2026-08-13T11:59:59.000Z" });
@@ -115,6 +136,27 @@ describe("automatic eligibility", () => {
       category: "Health",
     });
     expect(selectBestReadyArticle([saturated, diverse], permitted, Array(9).fill("Economy"), NOW)).toBe(diverse);
+  });
+});
+
+describe("database automatic eligibility", () => {
+  const migration = readFileSync(resolve(process.cwd(),
+    "supabase/migrations/20260909010000_require_automated_editorial_scores.sql"), "utf8");
+
+  it("rechecks every automated editorial dimension before database publication", () => {
+    for (const field of ["factualCompletenessScore", "originalityScore", "usefulnessScore",
+      "meaningfulContextScore", "headlineQualityScore", "addedValueScore"]) {
+      expect(migration).toContain(`p_validation->>'${field}'`);
+    }
+    expect(migration).toContain("p_validation->>'automatedEditorialPassed'");
+    expect(migration).toContain("p_validation->>'mostlyParaphrase'");
+    expect(migration).toContain("p_validation->>'speculativeOrInvented'");
+    expect(migration).toContain("EXCEPTION WHEN OTHERS THEN");
+  });
+
+  it("keeps eligibility helpers private to the service role", () => {
+    expect(migration).toMatch(/REVOKE ALL ON FUNCTION public\.ready_row_is_eligible[\s\S]*FROM PUBLIC, anon, authenticated/);
+    expect(migration).toMatch(/GRANT EXECUTE ON FUNCTION public\.ready_row_is_eligible[\s\S]*TO service_role/);
   });
 });
 

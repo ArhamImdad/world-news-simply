@@ -1,6 +1,5 @@
 import type { Article } from "@/types/article";
-
-export type AdsenseReviewStatus = "pending" | "approved" | "rejected";
+import { automatedEditorialEvidenceFailures } from "@/lib/publication-policy";
 
 export type AdsenseRuntimeConfig = {
   enabled: boolean;
@@ -86,31 +85,20 @@ function hasIndependentPermittedSources(article: Article) {
 }
 
 function passedPublicationQuality(article: Article) {
-  const validation = article.validation_results;
-  const generation = article.generation_metadata;
-  return (article.quality_score ?? 0) >= 90 && Boolean(validation) &&
-    validation!.factualSupportPassed && validation!.originalityPassed &&
-    validation!.duplicateDetectionPassed && validation!.sourceOverlapPassed &&
-    validation!.completeAttribution && !validation!.unsupportedClaims &&
-    !validation!.inventedQuotes && !validation!.inventedStatistics &&
-    Array.isArray(validation!.hardWarnings) && validation!.hardWarnings.length === 0 &&
-    Boolean(generation?.modernPipeline) && Boolean(generation?.preparedAutomatically) &&
-    generation?.pipelineVersion === "autonomous-queue-v1";
+  return automatedEditorialEvidenceFailures({ qualityScore: article.quality_score,
+    validation: article.validation_results, generationMetadata: article.generation_metadata }).length === 0;
 }
 
 /**
- * Canonical human-curation and content-quality boundary for article inventory.
+ * Canonical automated content-quality boundary for article inventory.
  * This is intentionally stricter than public visibility and fails closed when
  * internal quality or review metadata is absent.
  */
 export function isAdsenseEligible(article: Article, now = new Date()) {
   const expiresAt = validDate(article.expires_at);
   const approvedAt = validDate(article.approved_at);
-  const reviewedAt = validDate(article.adsense_reviewed_at);
-
   return article.publication_status === "approved" && article.editorial_state === "published" &&
-    article.adsense_review_status === "approved" && Boolean(approvedAt) && Boolean(reviewedAt) &&
-    Boolean(article.adsense_reviewed_by?.trim()) && Boolean(expiresAt && expiresAt > now) &&
+    Boolean(approvedAt) && Boolean(expiresAt && expiresAt > now) &&
     hasSubstantivePublisherContent(article) && hasIndependentPermittedSources(article) &&
     passedPublicationQuality(article);
 }

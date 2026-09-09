@@ -63,16 +63,11 @@ export type Article = {
   topic_signature?: string[] | null;
   validation_results?: ArticleValidationResults | null;
   generation_metadata?: ArticleGenerationMetadata | null;
-  adsense_review_status?: AdsenseReviewStatus | null;
-  adsense_reviewed_at?: string | null;
-  adsense_reviewed_by?: string | null;
 };
 
 export type EditorialState = "candidate" | "qualified" | "ready" | "published" | "expired" | "rejected";
 export type FreshnessClass = "BREAKING" | "CURRENT" | "ANALYSIS" | "EVERGREEN";
 export type ContentPool = "breaking" | "government-records" | "economic-data" | "evergreen";
-export type AdsenseReviewStatus = "pending" | "approved" | "rejected";
-
 export type ArticleSource = {
   title: string;
   url: string;
@@ -90,6 +85,15 @@ export type ArticleSource = {
 };
 
 export type ArticleValidationResults = {
+  factualCompletenessScore?: number;
+  originalityScore?: number;
+  usefulnessScore?: number;
+  meaningfulContextScore?: number;
+  headlineQualityScore?: number;
+  addedValueScore?: number;
+  automatedEditorialPassed?: boolean;
+  mostlyParaphrase?: boolean;
+  speculativeOrInvented?: boolean;
   factualSupportPassed: boolean;
   originalityPassed: boolean;
   duplicateDetectionPassed: boolean;

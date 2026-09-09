@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 const navCategories = ["All", "World", "Politics", "Technology", "Business", "Economy", "Science", "Sports", "Health", "Opinion"];
 const navRegions = ["All", "Asia", "Europe", "Middle East", "Americas", "Africa"];
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const ADSENSE_ARTICLE_SELECT = `${ARTICLE_SELECT},approved_at,editorial_state,quality_score,expires_at,validation_results,generation_metadata,adsense_review_status,adsense_reviewed_at,adsense_reviewed_by`;
+const ADSENSE_ARTICLE_SELECT = `${ARTICLE_SELECT},approved_at,editorial_state,quality_score,expires_at,validation_results,generation_metadata`;
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en", {

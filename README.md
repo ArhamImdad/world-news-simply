@@ -70,7 +70,7 @@ Preparation and publication are separate failure domains. Queue replenishment di
 
 Publication runs at `0 */2 * * *`. A database function protected by an advisory transaction lock and unique publication-slot key revalidates expiry, current registry IDs, source permissions, structured sources, validation evidence, image attribution, score, and duplicates. It ranks eligible content and publishes at most one row. The offset trigger (`15,45 * * * *`) replenishes independently; the two-hour cycle publishes first and replenishes afterward.
 
-Automatic publication is fail-closed. A row needs quality score at least 90, two permitted independent source domains, a structured primary source, all commercial-reuse/AI-processing/transformation permissions, factual and originality passes, duplicate and source-overlap passes, complete attribution, no unsupported claims, invented quotes/statistics, or hard warnings, modern pipeline metadata, unexpired freshness metadata, and a compliant image. AI scores cannot bypass these predicates.
+Automatic publication is fail-closed and requires no admin action. A row needs an overall quality score of at least 90; factual completeness, originality, usefulness, meaningful context, headline quality, and added-value scores of at least 90; two permitted independent source domains; a structured primary source; all commercial-reuse/AI-processing/transformation permissions; duplicate and source-overlap passes; complete attribution; no unsupported claims, invented quotes/statistics, excessive paraphrase, speculative content, or hard warnings; modern pipeline metadata; unexpired freshness metadata; and a compliant image. The database rechecks the same automated editorial evidence before changing `editorial_state` to `published`.
 
 Enabled pools use documented official text from BLS, GOV.UK, SEC, U.S. Census, ONS, and NASA, plus curated BLS/ONS methodology pairs for evergreen explainers. Publisher feeds with unknown or restrictive reuse terms remain registry-disabled. Publisher images are never ingested.
 
@@ -105,7 +105,7 @@ After deployment, verify both cron triggers in Cloudflare. Do not create duplica
 
 Review and apply the ordered files in `supabase/migrations` before deploying. The autonomous queue migration adds private lifecycle/evidence fields and service-role-only RPCs; builds do not execute migrations and the migration does not rewrite legacy rows. Public/anon access remains approved-row SELECT-only. The 892 legacy rows remain hidden with null modern queue metadata and cannot satisfy the ready constraint.
 
-There is no public admin login or CMS. Protected cron endpoints and service-role database functions are the only mutation path. AdSense monetization review is a separate, service-role-only human decision recorded by `review_article_for_adsense`; it never changes publication or factual-quality approval.
+There is no public admin login or CMS. Protected cron endpoints and service-role database functions are the only mutation path. Publication moves directly from generated draft through automated editorial checks to the ready queue and scheduled public release. Failed drafts remain rejected or quarantined without blocking the queue for admin action.
 
 ## Search and site URL
 
@@ -117,14 +117,13 @@ When a custom domain is ready, attach it to the Worker, update `NEXT_PUBLIC_SITE
 
 ## AdSense readiness (disabled)
 
-AdSense is disabled by default. Public publication does not make an article monetizable: the article must also have an explicit human `adsense_review_status = approved` decision and pass the stricter server-side content, freshness, source, attribution, and quality gate. Homepage, policy, loading, error, API, and other non-article routes contain no ad component.
+AdSense is disabled by default. If Google approves the site and the operator later enables the runtime and consent flags, ads remain limited to published articles that pass the automated content, freshness, source, attribution, originality, and quality gates. Homepage, policy, loading, error, API, and other non-article routes contain no ad component.
 
 Before enabling AdSense:
 
-1. Complete the remaining staging reserve validation, connect the custom HTTPS domain, deploy, and publish a representative body of human-reviewed articles.
-2. Apply the ordered AdSense human-review migration. Use only the service-role RPC from a trusted operator environment to approve or reject an already-published article; do not expose that RPC through a public page.
-3. Create the AdSense account and use the real client and article-slot values supplied by Google. Setting the client value makes `/ads.txt` and the optional account-verification metadata use that same real publisher identity; absent or malformed values return no declaration.
-4. Configure a Google-certified CMP/TCF integration for applicable EEA, UK, and Switzerland traffic. Set `NEXT_PUBLIC_ADSENSE_CONSENT_READY=true` only after that production configuration is verified.
-5. Set `NEXT_PUBLIC_ADSENSE_ENABLED=true` only after Google has approved the site. If any flag, identifier, human review, or content gate is missing, the page remains ad-free without a placeholder or layout hole.
+1. Complete the remaining staging reserve validation, connect the custom HTTPS domain, deploy, and publish a representative body of automatically qualified articles.
+2. Create the AdSense account and use the real client and article-slot values supplied by Google. Setting the client value makes `/ads.txt` and the optional account-verification metadata use that same real publisher identity; absent or malformed values return no declaration.
+3. Configure a Google-certified CMP/TCF integration for applicable EEA, UK, and Switzerland traffic. Set `NEXT_PUBLIC_ADSENSE_CONSENT_READY=true` only after that production configuration is verified.
+4. Set `NEXT_PUBLIC_ADSENSE_ENABLED=true` only after Google has approved the site. If any flag, identifier, automated eligibility gate, or consent prerequisite is missing, the page remains ad-free without a placeholder or layout hole.
 
 Google Analytics is configured independently. If it is enabled for a jurisdiction where consent is required, include it in the production consent design rather than treating the AdSense flag as analytics consent.

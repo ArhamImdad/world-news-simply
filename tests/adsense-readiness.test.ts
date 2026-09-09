@@ -35,8 +35,8 @@ function article(overrides: Partial<Article> = {}): Article {
 
   return {
     id: "00000000-0000-4000-8000-000000000001",
-    slug: "human-reviewed-article",
-    title: "Human-reviewed independent synthesis of two official economic releases",
+    slug: "automatically-qualified-article",
+    title: "Automatically qualified independent synthesis of two official economic releases",
     summary: "This substantive briefing compares independently published official evidence and explains the meaningful context for readers without copying either source.",
     content: `${paragraph}\n${paragraph}\n${paragraph}`,
     image_url: "/globe.svg",
@@ -48,11 +48,17 @@ function article(overrides: Partial<Article> = {}): Article {
     quality_score: 94,
     approved_at: "2026-08-30T00:00:00.000Z",
     expires_at: "2027-08-30T00:00:00.000Z",
-    adsense_review_status: "approved",
-    adsense_reviewed_at: "2026-08-30T01:00:00.000Z",
-    adsense_reviewed_by: "owner-review",
     sources: [source("one.example", true), source("two.example", false)],
     validation_results: {
+      factualCompletenessScore: 94,
+      originalityScore: 94,
+      usefulnessScore: 94,
+      meaningfulContextScore: 94,
+      headlineQualityScore: 94,
+      addedValueScore: 94,
+      automatedEditorialPassed: true,
+      mostlyParaphrase: false,
+      speculativeOrInvented: false,
       factualSupportPassed: true,
       originalityPassed: true,
       duplicateDetectionPassed: true,
@@ -84,24 +90,23 @@ const enabledConfig = (): AdsenseRuntimeConfig => ({
 describe("AdSense article eligibility", () => {
   const now = new Date("2026-08-31T00:00:00.000Z");
 
-  it("keeps an unreviewed published article ad-free", () => {
-    expect(canRenderAdsense({ article: article({
-      adsense_review_status: "pending", adsense_reviewed_at: null, adsense_reviewed_by: null,
-    }), pathname: "/article/human-reviewed-article", config: enabledConfig(), now })).toBe(false);
+  it("does not require manual review metadata for automated AdSense eligibility", () => {
+    expect(canRenderAdsense({ article: article(), pathname: "/article/automatically-qualified-article",
+      config: enabledConfig(), now })).toBe(true);
   });
 
   it("keeps an approved article ad-free while AdSense is disabled", () => {
-    expect(canRenderAdsense({ article: article(), pathname: "/article/human-reviewed-article",
+    expect(canRenderAdsense({ article: article(), pathname: "/article/automatically-qualified-article",
       config: { ...enabledConfig(), enabled: false }, now })).toBe(false);
   });
 
   it("keeps an approved article ad-free without a valid publisher ID", () => {
-    expect(canRenderAdsense({ article: article(), pathname: "/article/human-reviewed-article",
+    expect(canRenderAdsense({ article: article(), pathname: "/article/automatically-qualified-article",
       config: { ...enabledConfig(), clientId: null }, now })).toBe(false);
   });
 
   it("allows only a fully eligible approved article with valid enabled configuration", () => {
-    expect(canRenderAdsense({ article: article(), pathname: "/article/human-reviewed-article",
+    expect(canRenderAdsense({ article: article(), pathname: "/article/automatically-qualified-article",
       config: enabledConfig(), now })).toBe(true);
   });
 
@@ -118,15 +123,24 @@ describe("AdSense article eligibility", () => {
     expect(isAdsenseEligible(article({ sources: [article().sources![0]] }), now)).toBe(false);
   });
 
+  it("fails closed when an automated editorial score or safety gate fails", () => {
+    expect(isAdsenseEligible(article({ validation_results: {
+      ...article().validation_results!, usefulnessScore: 89,
+    } }), now)).toBe(false);
+    expect(isAdsenseEligible(article({ validation_results: {
+      ...article().validation_results!, unsupportedClaims: true,
+    } }), now)).toBe(false);
+  });
+
   it("keeps error, policy, loading, API, and navigation routes ineligible", () => {
     for (const route of ["/404", "/privacy", "/terms", "/api/cron", "/", "/loading"]) {
       expect(isAdsenseRouteEligible(route)).toBe(false);
     }
-    expect(isAdsenseRouteEligible("/article/human-reviewed-article")).toBe(true);
+    expect(isAdsenseRouteEligible("/article/automatically-qualified-article")).toBe(true);
   });
 
   it("requires the explicit consent-readiness boundary", () => {
-    expect(canRenderAdsense({ article: article(), pathname: "/article/human-reviewed-article",
+    expect(canRenderAdsense({ article: article(), pathname: "/article/automatically-qualified-article",
       config: { ...enabledConfig(), consentReady: false }, now })).toBe(false);
   });
 });
@@ -158,25 +172,17 @@ describe("AdSense configuration and inventory declarations", () => {
   });
 });
 
-describe("human monetization review migration security", () => {
+describe("automated monetization migration security", () => {
   const migration = readFileSync(resolve(process.cwd(),
-    "supabase/migrations/20260831010000_add_adsense_human_review.sql"), "utf8");
+    "supabase/migrations/20260909020000_replace_manual_adsense_gate.sql"), "utf8");
 
-  it("defaults every legacy and new article to pending without bulk approval", () => {
-    expect(migration).toContain("ADD COLUMN IF NOT EXISTS adsense_review_status text DEFAULT 'pending'");
-    expect(migration).toContain("WHERE adsense_review_status IS NULL");
-    expect(migration).not.toMatch(/SET adsense_review_status = 'approved'/);
+  it("retires the manual review RPC without deleting article data", () => {
+    expect(migration).toContain("DROP FUNCTION IF EXISTS public.review_article_for_adsense(uuid, text, text)");
+    expect(migration).not.toMatch(/DROP COLUMN/i);
+    expect(migration).not.toMatch(/DELETE FROM public\.articles/i);
   });
 
-  it("denies public and browser-role review mutation", () => {
+  it("keeps legacy review columns private", () => {
     expect(migration).toMatch(/REVOKE UPDATE \(adsense_review_status, adsense_reviewed_at, adsense_reviewed_by\)[\s\S]*FROM PUBLIC, anon, authenticated/);
-    expect(migration).toMatch(/REVOKE ALL ON FUNCTION public\.review_article_for_adsense\(uuid, text, text\)[\s\S]*FROM PUBLIC, anon, authenticated/);
-  });
-
-  it("permits only the service role to execute the narrow review RPC", () => {
-    expect(migration).toMatch(/GRANT EXECUTE ON FUNCTION public\.review_article_for_adsense\(uuid, text, text\)[\s\S]*TO service_role/);
-    expect(migration).toContain("AND article.publication_status = 'approved'");
-    expect(migration).toContain("SECURITY DEFINER");
-    expect(migration).toContain("SET search_path = public, pg_temp");
   });
 });
