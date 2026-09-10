@@ -52,6 +52,7 @@ import {
 } from "@/lib/replenishment-telemetry";
 import { selectNormalPreparedCandidates } from "@/lib/candidate-preparation";
 import { balanceCandidates, classifyArticleCategory, MINIMUM_PUBLISHED_PER_CATEGORY, PUBLICATION_CATEGORIES } from "@/lib/category-balance";
+import { processPendingGeneratedDrafts, type DraftProcessingMetrics } from "@/lib/draft-processing";
 
 type RecentArticle = {
   title: string;
@@ -101,6 +102,8 @@ export type ReplenishmentMetrics = {
     addedValue: number;
     accepted: boolean;
   }>;
+  pendingDraftProcessing: DraftProcessingMetrics | null;
+  pendingDraftProcessingError: string | null;
 };
 
 function operationalLog(level: "info" | "warn" | "error", event: string, fields: Record<string, unknown> = {}) {
@@ -723,7 +726,28 @@ async function replenishReadyQueueWithLease(
     attributedArticleIds: [],
     sampleIntegrityPassed: true,
     auditResults: [],
+    pendingDraftProcessing: null,
+    pendingDraftProcessingError: null,
   };
+
+  if (depth < config.maximum) {
+    try {
+      metrics.pendingDraftProcessing = await processPendingGeneratedDrafts({
+        provider, coverage: categoryCoverage, queueMaximum: config.maximum, fillTarget,
+        assertOwned,
+      });
+      operationalLog("info", "pending_draft_processing_completed", {
+        runId,
+        ...metrics.pendingDraftProcessing,
+      });
+    } catch (error) {
+      metrics.pendingDraftProcessingError = error instanceof Error ? error.message : "unknown";
+      operationalLog("error", "pending_draft_processing_failed", {
+        runId,
+        error: metrics.pendingDraftProcessingError,
+      });
+    }
+  }
 
   if (effort.mode === "healthy" || effort.limit === 0) {
     operationalLog("info", "queue_replenishment_skipped", { runId, readyQueueDepth: depth, reserveMode: effort.mode });
@@ -1300,24 +1324,30 @@ export async function runPublicationCycle(slot = publicationSlotAt(), signal?: A
   assertWritesAllowed("publication cycle");
   const result = await executeSeparatedCycle(
     () => publishNextReadyArticle(slot),
-    () => replenishReadyQueue(undefined, [], { signal })
+    () => replenishReadyQueue(undefined, [], { signal }),
+    true
   );
   const published = result.publication;
+  const publicationError = result.publicationError;
+  const publicationOutcome = published?.was_published ? "published"
+    : published ? "slot_already_filled"
+      : publicationError ? "failed" : "no_eligible_ready_article";
   if (published?.was_published) {
     operationalLog("info", "article_published", { articleId: published.id, category: published.category, freshnessClass: published.freshness_class, slot: slot.toISOString() });
   } else if (published) {
     operationalLog("info", "publication_slot_already_filled", { articleId: published.id, slot: slot.toISOString() });
-  } else if (!result.publicationError) {
+  } else if (!publicationError) {
     operationalLog("error", "publication_slot_empty", { slot: slot.toISOString(), reason: "no_eligible_ready_article" });
   } else {
-    operationalLog("error", "publication_failed", { slot: slot.toISOString(), error: result.publicationError instanceof Error ? result.publicationError.name : "unknown" });
+    operationalLog("error", "publication_failed", { slot: slot.toISOString(), error: publicationError instanceof Error ? publicationError.name : "unknown" });
   }
   if (result.replenishmentError) {
     operationalLog("error", "queue_replenishment_failed", { error: result.replenishmentError instanceof Error ? result.replenishmentError.name : "unknown" });
   }
   return {
     published,
-    publicationError: result.publicationError ? "Atomic publication failed." : null,
+    publicationOutcome,
+    publicationError: publicationError ? "Atomic publication failed." : null,
     replenishment: result.replenishment,
   };
 }

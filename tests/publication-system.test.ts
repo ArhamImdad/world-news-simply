@@ -217,6 +217,33 @@ describe("scheduler resilience", () => {
     expect(result.replenishment).toBe(2);
     expect(readyIds).toEqual(["ready-1", "ready-2"]);
   });
+
+  it("retries an empty publication slot after replenishment prepares content", async () => {
+    let ready = false;
+    let publicationAttempts = 0;
+    const result = await executeSeparatedCycle(
+      async () => {
+        publicationAttempts += 1;
+        return ready ? "published-after-preparation" : null;
+      },
+      async () => { ready = true; return "prepared"; },
+      true
+    );
+    expect(result.publication).toBe("published-after-preparation");
+    expect(result.replenishment).toBe("prepared");
+    expect(publicationAttempts).toBe(2);
+  });
+
+  it("does not retry publication when replenishment fails", async () => {
+    let publicationAttempts = 0;
+    const result = await executeSeparatedCycle(
+      async () => { publicationAttempts += 1; return null; },
+      async () => { throw new Error("provider failed"); },
+      true
+    );
+    expect(publicationAttempts).toBe(1);
+    expect(result.replenishmentError).toBeInstanceOf(Error);
+  });
 });
 
 describe("official source extraction", () => {
