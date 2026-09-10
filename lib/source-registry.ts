@@ -92,6 +92,13 @@ export const SOURCE_REGISTRY: readonly SourceRegistryEntry[] = [
   {
     id: "govuk-news", publisher: "UK Government", domain: "gov.uk",
     feedApiUrl: "https://www.gov.uk/search/news-and-communications.atom", categoryHint: "World", regionHint: "Europe",
+    additionalDiscoveryUrls: [
+      "https://www.gov.uk/search/news-and-communications.atom?keywords=sport",
+      "https://www.gov.uk/search/news-and-communications.atom?keywords=artificial+intelligence",
+      "https://www.gov.uk/search/news-and-communications.atom?keywords=science",
+      "https://www.gov.uk/search/news-and-communications.atom?keywords=health",
+      "https://www.gov.uk/search/news-and-communications.atom?keywords=election",
+    ],
     commercialUseAllowed: true, aiProcessingAllowed: true, transformationAllowed: true,
     attributionRequired: true, licenseType: "ogl-3.0", sourceType: "government-news",
     notes: "Only GOV.UK pages that expose the Open Government Licence marker are eligible. Item-level exceptions fail closed.",

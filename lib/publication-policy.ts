@@ -5,6 +5,7 @@ import type {
   ContentPool,
   FreshnessClass,
 } from "@/types/article";
+import { isPublicationCategory } from "@/lib/category-balance";
 
 export const AUTOMATIC_PUBLICATION_QUALITY_THRESHOLD = 90;
 export const AUTOMATIC_EDITORIAL_DIMENSION_THRESHOLD = 90;
@@ -128,6 +129,7 @@ export function autoPublishEligibilityFailures(
   if (sources.some((source) => !validWebUrl(source.url) || !source.title || !source.publisher || !source.licenseType || !source.permissionUrl)) failures.push("malformed sources");
   if (sources.some((source) => !source.commercialUseAllowed || !source.aiProcessingAllowed || !source.transformationAllowed)) failures.push("source permission denied");
   if (!article.title.trim() || !article.summary.trim() || !article.content.trim() || !article.category.trim()) failures.push("incomplete article");
+  if (!isPublicationCategory(article.category)) failures.push("unsupported category");
   if (!["breaking", "government-records", "economic-data", "evergreen"].includes(article.content_pool)) failures.push("invalid content pool");
   if (!article.image_url || (!article.image_url.startsWith("/") && !validWebUrl(article.image_url))) failures.push("invalid image");
   if (!article.image_url.startsWith("/") && (!article.image_photographer_name || !article.image_attribution_url)) failures.push("missing image attribution");

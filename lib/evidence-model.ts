@@ -54,6 +54,7 @@ export type EvidencePlan = {
 };
 
 export type EvidenceBundle = {
+  editorialCategory?: string;
   candidateHash: string;
   sources: Array<{ id: string; publisher: string; url: string; date: string | null }>;
   facts: EvidenceFact[];
@@ -332,6 +333,7 @@ export function modelVisibleEvidencePayload(bundle: EvidenceBundle, includePlan 
   });
   return {
     sources: bundle.sources.map(({ publisher, date }) => ({ publisher, date })),
+    ...(bundle.editorialCategory ? { editorialCategory: bundle.editorialCategory } : {}),
     evidence: bundle.facts.map(({ fact, publisher, context }) => ({ fact, publisher, context })),
     ...(includePlan ? { plan: {
       angle: semanticText(bundle.plan.angle),

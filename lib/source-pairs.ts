@@ -20,6 +20,18 @@ export type SourcePairRule = {
 // relationship before two items can be used together.
 export const SOURCE_PAIR_RULES: readonly SourcePairRule[] = [
   {
+    id: "sports-participation-and-policy",
+    sourceIds: ["govuk-news", "statcan-daily", "abs-latest-releases", "ons-release-calendar"],
+    topicKeys: ["sport", "sports", "participation", "athletes", "physical activity"],
+    maxDistanceHours: 24 * 31,
+  },
+  {
+    id: "technology-and-science-policy",
+    sourceIds: ["govuk-news", "nasa-news-releases", "ftc-press-releases", "doj-news", "statcan-daily"],
+    topicKeys: ["artificial intelligence", "technology", "cybersecurity", "computing", "privacy", "space", "satellite"],
+    maxDistanceHours: 24 * 21,
+  },
+  {
     id: "economic-indicators",
     sourceIds: ["bls-latest", "census-economic-indicators", "census-news-releases", "ons-release-calendar", "bea-news-releases", "federal-reserve-press", "eia-today-in-energy", "eurostat-news-releases", "statcan-daily", "abs-latest-releases"],
     topicKeys: ["employment", "inflation", "prices", "trade", "gdp", "income", "spending", "investment", "production", "productivity", "services", "manufacturing", "construction", "energy"],
@@ -85,6 +97,8 @@ const phraseAliases: readonly [RegExp, string][] = [
 ];
 
 const eventGroups: Record<string, readonly string[]> = {
+  sports: ["sport", "sports", "participation", "athletes", "olympic", "paralympic"],
+  technology: ["technology", "artificial intelligence", "cybersecurity", "computing", "software"],
   approval: ["approve", "approved", "approval", "authorize", "authorized", "authorization", "clearance"],
   enforcement: ["charge", "charged", "charges", "settle", "settlement", "fine", "penalty", "enforcement", "indict", "indicted", "sentenced", "fraud", "alleged", "allegations"],
   regulation: ["rule", "rules", "regulation", "regulatory", "proposal", "proposes", "comment", "guidance", "policy"],

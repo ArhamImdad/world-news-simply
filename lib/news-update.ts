@@ -15,6 +15,7 @@ import {
   articleReplenishmentRunId,
   enqueueReadyArticle,
   getReadyQueueDepth,
+  getCategoryCoverage,
   permittedSourceIds,
   publicationSlotAt,
   publishNextReadyArticle,
@@ -50,6 +51,7 @@ import {
   type ReplenishmentTelemetryRecorder,
 } from "@/lib/replenishment-telemetry";
 import { selectNormalPreparedCandidates } from "@/lib/candidate-preparation";
+import { balanceCandidates, classifyArticleCategory, MINIMUM_PUBLISHED_PER_CATEGORY, PUBLICATION_CATEGORIES } from "@/lib/category-balance";
 
 type RecentArticle = {
   title: string;
@@ -172,14 +174,16 @@ async function discoverCandidates(mode: ReserveMode) {
         content: content.slice(0, source.maxSourceCharacters),
         url,
         publishedAt: publishedAt(item.isoDate || item.pubDate),
-        source,
+        source: { ...source, categoryHint: classifyArticleCategory(title, source.categoryHint, source.articleTypeHint) },
       } satisfies SupportingItem] : [];
     });
   }));
 
   const failures = results.filter((result) => result.status === "rejected").length;
   const discovered: CandidateItem[] = results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
-  const items: CandidateItem[] = mode === "critical" ? [...EVERGREEN_TOPICS, ...discovered] : [...discovered, ...EVERGREEN_TOPICS];
+  const evergreen = EVERGREEN_TOPICS.map((item) => ({ ...item, source: { ...item.source,
+    categoryHint: classifyArticleCategory(item.title, item.source.categoryHint, item.source.articleTypeHint) } }));
+  const items: CandidateItem[] = mode === "critical" ? [...evergreen, ...discovered] : [...discovered, ...evergreen];
   items.sort((left, right) =>
     candidateReserveOrder(mode, left.source.contentPool, "corroboration" in left) -
       candidateReserveOrder(mode, right.source.contentPool, "corroboration" in right) ||
@@ -677,9 +681,17 @@ async function replenishReadyQueueWithLease(
   await assertOwned();
   const config = getPublicationConfig();
   const depth = await getReadyQueueDepth();
+  const categoryCoverage = await getCategoryCoverage();
+  operationalLog("info", "category_distribution", { runId, categoryCoverage, minimumPublishedPerCategory: MINIMUM_PUBLISHED_PER_CATEGORY });
   await recordQueueObservation(telemetry, "starting", depth);
-  const effort = replenishmentLimit(depth, config);
-  const fillTarget = replenishmentFillTarget(depth, config);
+  const coverageDeficit = PUBLICATION_CATEGORIES.reduce((sum, category) => sum + Math.max(0,
+    MINIMUM_PUBLISHED_PER_CATEGORY - categoryCoverage[category].published - categoryCoverage[category].ready), 0);
+  const coverageRepair = depth >= config.target && depth < config.maximum && coverageDeficit > 0;
+  const effort = coverageRepair
+    ? { mode: "normal" as const, limit: Math.min(config.normalCandidateLimit, config.maximum - depth) }
+    : replenishmentLimit(depth, config);
+  const fillTarget = coverageRepair ? Math.min(config.maximum, depth + coverageDeficit) : replenishmentFillTarget(depth, config);
+  const generatedCategories: Record<string, number> = {};
   const reserveControl = createReserveFillControl(depth, fillTarget);
   telemetry?.recordReserveControl(reserveControl);
   const metrics: ReplenishmentMetrics = {
@@ -810,7 +822,24 @@ async function replenishReadyQueueWithLease(
     }
   }
 
-  groqCandidates.sort((left, right) => right.qualificationScore - left.qualificationScore);
+  const balanced = balanceCandidates(groqCandidates, categoryCoverage,
+    (candidate) => candidate.item.source.categoryHint, (candidate) => candidate.qualificationScore);
+  groqCandidates.splice(0, groqCandidates.length, ...balanced);
+  if (coverageRepair) {
+    // Extra reserve capacity is exclusively for the missing categories.
+    const deficient = groqCandidates.filter((candidate) => {
+      const count = categoryCoverage[candidate.item.source.categoryHint as keyof typeof categoryCoverage];
+      return count.published + count.ready < MINIMUM_PUBLISHED_PER_CATEGORY;
+    });
+    groqCandidates.splice(0, groqCandidates.length, ...deficient);
+  }
+  for (const category of PUBLICATION_CATEGORIES) {
+    if (categoryCoverage[category].published + categoryCoverage[category].ready < MINIMUM_PUBLISHED_PER_CATEGORY &&
+        !groqCandidates.some((candidate) => candidate.item.source.categoryHint === category)) {
+      operationalLog("warn", "category_supply_gap", { runId, category, coverage: categoryCoverage[category],
+        reason: "no_eligible_candidate_after_source_evidence_duplicate_and_quality_preflight" });
+    }
+  }
   const providerLimit = Math.min(groqCandidateLimit(effort.mode, config), groqCandidates.length);
   const selectedFunnelIds = new Set(groqCandidates.slice(0, providerLimit).map((candidate) => candidate.funnelIdentity));
   const deferredFunnelIds = new Set(groqCandidates.slice(providerLimit).map((candidate) => candidate.funnelIdentity));
@@ -913,7 +942,9 @@ async function replenishReadyQueueWithLease(
       let finalOriginality: ReturnType<typeof deterministicOriginalityPrecheck> | null = null;
       try {
         await assertOwned();
+        evidence.editorialCategory = item.source.categoryHint;
         generated = await provider.generate(evidence);
+        generatedCategories[item.source.categoryHint] = (generatedCategories[item.source.categoryHint] ?? 0) + 1;
         let headlineRepair = repairHeadlineWithoutNewFacts(generated, evidence, sources);
         generated = headlineRepair.article;
         let originality = headlineRepair.originality;
@@ -1201,6 +1232,8 @@ async function replenishReadyQueueWithLease(
     rejectionReasons: metrics.rejectionReasons,
     productiveSourcePairs: metrics.productiveSourcePairs,
     preparedCategories: metrics.preparedCategories,
+    generatedCategories,
+    categoryCoverageAfter: await getCategoryCoverage(),
     rejectedCategories: metrics.rejectedCategories,
     candidatesSentToGroq: metrics.candidatesSentToGroq,
     candidatesDeferred: metrics.candidatesDeferred,

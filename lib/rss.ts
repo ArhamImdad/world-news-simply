@@ -82,7 +82,11 @@ export async function parseFeed(source: SourceRegistryEntry): Promise<{ items: N
   const feeds = attempts.flatMap((attempt) => attempt.status === "fulfilled" ? [attempt.value] : []);
   if (feeds.length === 0) throw new Error(`All discovery endpoints failed for source ${source.id}.`);
   const seen = new Set<string>();
-  return { items: feeds.flatMap((feed) => feed.items).filter((item) => {
+  // Round-robin endpoints before callers cap discovery; concatenation starved
+  // every specialist feed whenever the general feed filled the cap on its own.
+  const interleaved = Array.from({ length: Math.max(0, ...feeds.map((feed) => feed.items.length)) },
+    (_, index) => feeds.flatMap((feed) => feed.items[index] ? [feed.items[index]] : [])).flat();
+  return { items: interleaved.filter((item) => {
     const key = `${String(item.link ?? "")}|${String(item.pubDate ?? item.isoDate ?? "")}`;
     if (!key || seen.has(key)) return false;
     seen.add(key);

@@ -2,6 +2,7 @@ import { SYNTHESIS_SOURCES } from "@/lib/source-registry";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ReadyArticle } from "@/lib/publication-policy";
 import { assertWritesAllowed } from "@/lib/environment-isolation";
+import { emptyCategoryCoverage, PUBLICATION_CATEGORIES } from "@/lib/category-balance";
 
 export type PreparedArticleInsert = ReadyArticle & {
   slug: string;
@@ -53,6 +54,24 @@ export async function getReadyQueueDepth(database?: SupabaseClient) {
     .gt("expires_at", new Date().toISOString());
   if (error) throw new Error(`Unable to count ready queue: ${error.message}`);
   return count ?? 0;
+}
+
+export async function getCategoryCoverage(database?: SupabaseClient, now = new Date()) {
+  assertWritesAllowed("private category coverage access");
+  const client = await databaseClient(database);
+  const coverage = emptyCategoryCoverage();
+  const recentSince = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  await Promise.all(PUBLICATION_CATEGORIES.map(async (category) => {
+    const base = () => client.from("articles").select("id", { count: "exact", head: true }).eq("category", category);
+    const results = await Promise.all([
+      base().eq("publication_status", "approved"),
+      base().eq("publication_status", "draft").eq("editorial_state", "ready").gt("expires_at", now.toISOString()),
+      base().eq("publication_status", "approved").gte("approved_at", recentSince),
+    ]);
+    for (const result of results) if (result.error) throw new Error(`Category coverage query failed: ${result.error.message}`);
+    coverage[category] = { published: results[0].count ?? 0, ready: results[1].count ?? 0, recent: results[2].count ?? 0 };
+  }));
+  return coverage;
 }
 
 export async function enqueueReadyArticle(

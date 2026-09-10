@@ -14,6 +14,9 @@ export function buildGenerationPrompt(evidence: EvidenceBundle) {
 
 Every evidence entry is a direct, traceable extract selected by deterministic code. Numeric positions describe relationships inside the supplied JSON only; they are never prose citations. Do not use background knowledge or reconstruct omitted source material.
 
+Editorial category: ${evidence.editorialCategory ?? "use the evidence subject"}. Keep the article on that subject; do not invent facts to fit a category or return a different category.
+${evidence.editorialCategory === "Opinion" ? "Write clearly labeled evidence-based editorial analysis. Begin the summary with 'Analysis:'. Distinguish supported interpretation from reported facts. Do not invent personal experiences, a human columnist, or unsupported recommendations. All ordinary evidence and quality requirements still apply." : "Write a factual news briefing, not an opinion column."}
+
 Required publisher labels that must appear verbatim in the article: ${evidence.sources.map((source) => source.publisher).join("; ")}.
 
 Return ONLY a JSON object with title, content, summary, and read_time. The content should be 380-700 words when the evidence supports that depth.

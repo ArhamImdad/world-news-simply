@@ -14,9 +14,12 @@ function topic(
   primarySourceId: string,
   primaryUrl: string,
   supportingSourceId: string,
-  supportingUrl: string
+  supportingUrl: string,
+  editorialAnalysis = false
 ): EvergreenCandidate {
-  const primarySource = registeredSource(primarySourceId);
+  const registered = registeredSource(primarySourceId);
+  const primarySource = editorialAnalysis
+    ? { ...registered, categoryHint: "Opinion", articleTypeHint: "opinion" as const } : registered;
   const supportingSource = registeredSource(supportingSourceId);
   const context = `Official methodology material for an evergreen explainer about ${title}.`;
   const primary: SupportingItem = { title, content: context, url: primaryUrl, publishedAt: null, source: primarySource };
@@ -28,11 +31,12 @@ function topic(
 // fetched and license-checked; a missing or changed page fails the candidate.
 export const EVERGREEN_TOPICS: readonly EvergreenCandidate[] = [
   topic(
-    "How consumer price inflation measures are constructed and interpreted",
+    "What official inflation measures can and cannot tell readers",
     "bls-latest",
     "https://www.bls.gov/cpi/questions-and-answers.htm",
     "ons-release-calendar",
-    "https://www.ons.gov.uk/economy/inflationandpriceindices/methodologies/consumerpriceinflationincludesall3indicescpihcpiandrpiqmi"
+    "https://www.ons.gov.uk/economy/inflationandpriceindices/methodologies/consumerpriceinflationincludesall3indicescpihcpiandrpiqmi",
+    true
   ),
   topic(
     "How official employment and unemployment measures classify the labour force",

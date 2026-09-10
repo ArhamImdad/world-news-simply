@@ -24,8 +24,9 @@ export async function GET(request: Request) {
       const result = await replenishReadyQueue(undefined, [], { signal: request.signal });
       return Response.json({ success: true, message: "Queue replenishment completed.", replenishment: result });
     }
-    const scheduledTime = Number(url.searchParams.get("scheduledTime"));
-    const requestedSlot = Number.isFinite(scheduledTime) ? new Date(scheduledTime) : new Date();
+    const rawScheduledTime = url.searchParams.get("scheduledTime");
+    const scheduledTime = rawScheduledTime?.trim() ? Number(rawScheduledTime) : NaN;
+    const requestedSlot = Number.isFinite(scheduledTime) && scheduledTime > 0 ? new Date(scheduledTime) : new Date();
     const result = await runPublicationCycle(publicationSlotAt(requestedSlot), request.signal);
     return Response.json({ success: true, message: "Autonomous publication cycle completed.", ...result });
   } catch (error) {
